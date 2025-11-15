@@ -31,14 +31,14 @@ impl Manifest {
             .with_context(|| format!("Failed to read {:?}", path.as_ref()))?;
 
         let manifest: Manifest =
-            toml::from_str(&content).with_context(|| "Failed to parse MANIFEST.toml")?;
+            toml::from_str(&content).with_context(|| "Failed to parse manifest.toml")?;
 
         Ok(manifest)
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let content = toml::to_string_pretty(self)
-            .with_context(|| "Failed to serialize MANIFEST.toml contents")?;
+            .with_context(|| "Failed to serialize manifest.toml contents")?;
 
         fs::write(path.as_ref(), content)
             .with_context(|| format!("Failed to write {:?}", path.as_ref()))?;
@@ -98,6 +98,7 @@ impl Manifest {
             service: IndexMap::new(),
             rule,
             packages,
+            guards: GuardsSection::default(),
         }
     }
 

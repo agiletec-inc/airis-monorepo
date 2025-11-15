@@ -18,7 +18,7 @@ Stop fighting with dependencies, broken builds, and cross-platform issues. AIris
 
 ### ✅ After
 - **Docker-first enforced**: `just pnpm` → Error with helpful message
-- **Single source of truth**: `MANIFEST.toml` → auto-generate everything
+- **Single source of truth**: `manifest.toml` → auto-generate everything
 - **LLM-friendly**: Clear error messages, MCP server integration
 - **Cross-platform**: macOS/Linux/Windows via Docker
 - **Rust special case**: Local builds for Apple Silicon GPU support
@@ -53,7 +53,7 @@ cargo install airis
 ### Create New Workspace
 ```bash
 mkdir my-monorepo && cd my-monorepo
-airis init          # Creates MANIFEST.toml + derived files
+airis init          # Creates manifest.toml + derived files
 just up
 ```
 
@@ -78,7 +78,7 @@ just up
 
 ```
 my-monorepo/
-├── MANIFEST.toml         # Single source of truth
+├── manifest.toml         # Single source of truth
 ├── workspace.yaml        # Auto-generated metadata
 ├── justfile              # Auto-generated (DO NOT EDIT)
 ├── package.json          # Auto-generated (DO NOT EDIT)
@@ -98,7 +98,7 @@ my-monorepo/
 
 ## 💡 Core Concepts
 
-### 1. Single Manifest (`MANIFEST.toml`)
+### 1. Single Manifest (`manifest.toml`)
 
 ```yaml
 [workspace]
@@ -174,7 +174,7 @@ airis build duplicate-finder --docker  # Force Docker build (no GPU)
 ### ✅ Implemented
 - [x] Rust CLI skeleton
 - [x] Manifest-driven templates
-- [x] Example MANIFEST.toml
+- [x] Example manifest.toml
 - [x] `airis init` (create + re-sync derived files)
 
 ### 🚧 In Progress

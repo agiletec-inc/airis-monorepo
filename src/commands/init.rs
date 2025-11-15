@@ -7,7 +7,7 @@ use colored::Colorize;
 use crate::commands::{discover, generate};
 use crate::manifest::{Manifest, MANIFEST_FILE};
 
-/// Initialize or optimize MANIFEST-driven workspace files
+/// Initialize or optimize manifest-driven workspace files
 pub fn run(force: bool) -> Result<()> {
     let manifest_path = Path::new(MANIFEST_FILE);
     let project_name = env::current_dir()
@@ -16,7 +16,7 @@ pub fn run(force: bool) -> Result<()> {
         .unwrap_or_else(|| "my-monorepo".to_string());
 
     let manifest = if manifest_path.exists() && !force {
-        println!("{}", "📖 Loading existing MANIFEST.toml...".bright_blue());
+        println!("{}", "📖 Loading existing manifest.toml...".bright_blue());
         Manifest::load(manifest_path)?
     } else {
         // Check if this is an existing project with apps/libs
@@ -38,7 +38,7 @@ pub fn run(force: bool) -> Result<()> {
             println!();
             println!(
                 "{}",
-                "📝 Generating MANIFEST.toml from discovered structure..."
+                "📝 Generating manifest.toml from discovered structure..."
                     .bright_blue()
             );
 
@@ -46,20 +46,20 @@ pub fn run(force: bool) -> Result<()> {
             let manifest = create_manifest_from_discovery(&project_name, discovered);
             manifest
                 .save(manifest_path)
-                .context("Failed to write MANIFEST.toml")?;
+                .context("Failed to write manifest.toml")?;
             manifest
         } else {
             // New project - use default template
             let action = if manifest_path.exists() {
-                "♻️  Re-initializing MANIFEST.toml template..."
+                "♻️  Re-initializing manifest.toml template..."
             } else {
-                "📝 Generating MANIFEST.toml template..."
+                "📝 Generating manifest.toml template..."
             };
             println!("{}", action.bright_blue());
             let manifest = Manifest::default_with_project(&project_name);
             manifest
                 .save(manifest_path)
-                .context("Failed to write MANIFEST.toml")?;
+                .context("Failed to write manifest.toml")?;
             manifest
         }
     };
@@ -68,9 +68,9 @@ pub fn run(force: bool) -> Result<()> {
     generate::sync_from_manifest(&manifest)?;
 
     println!();
-    println!("{}", "✅ Workspace synced from MANIFEST.toml".green());
+    println!("{}", "✅ Workspace synced from manifest.toml".green());
     println!("{}", "Next steps:".bright_yellow());
-    println!("  1. Review generated MANIFEST.toml");
+    println!("  1. Review generated manifest.toml");
     println!("  2. Edit if needed (apps, libs, catalog policies)");
     println!("  3. Re-run `airis init` to re-sync files");
     println!("  4. Run `just up`");

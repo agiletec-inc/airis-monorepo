@@ -7,7 +7,7 @@ use crate::templates::TemplateEngine;
 
 const WORKSPACE_FILE: &str = "workspace.yaml";
 
-/// Sync justfile/docker-compose/package.json from MANIFEST.toml contents
+/// Sync justfile/docker-compose/package.json from manifest.toml contents
 pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     println!("{}", "🧱 Syncing workspace.yaml metadata...".bright_blue());
     let workspace_config: WorkspaceConfig = manifest.to_workspace_config();
@@ -24,7 +24,7 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     println!();
     println!("{}", "✅ Generated files:".green());
-    println!("   - MANIFEST-driven workspace.yaml");
+    println!("   - manifest-driven workspace.yaml");
     println!("   - docker-compose.yml");
     println!("   - justfile");
     println!("   - package.json");

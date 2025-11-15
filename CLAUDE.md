@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `justfile`, `package.json`, and `pnpm-workspace.yaml` from a single `MANIFEST.toml`. `workspace.yaml` is generated metadata, not the user-editable manifest.
+**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `justfile`, `package.json`, and `pnpm-workspace.yaml` from a single `manifest.toml`. `workspace.yaml` is generated metadata, not the user-editable manifest.
 
 **Core Philosophy**: Prevent host pollution by blocking direct `pnpm`/`npm`/`yarn` execution and forcing Docker-first workflow. Special exception for Rust projects (local builds for GPU support).
 
@@ -27,7 +27,7 @@ cargo test
 
 ### Testing the CLI
 ```bash
-# Test init command (creates MANIFEST.toml + workspace metadata)
+# Test init command (creates manifest.toml + workspace metadata)
 cargo run -- init
 
 # Test with force flag
@@ -39,21 +39,21 @@ cargo run -- validate
 
 ## Architecture & Code Structure
 
-### Configuration Flow (MANIFEST.toml → Generated Files)
+### Configuration Flow (manifest.toml → Generated Files)
 
-1. **MANIFEST.toml** (user-editable)
+1. **manifest.toml** (user-editable)
    - Parsed via `toml`
    - Describes dev apps, infra services, lint/test rules, package config (`src/manifest.rs`)
 
 2. **workspace.yaml** (auto-generated metadata)
-   - Derived from MANIFEST.toml for IDE/tooling compatibility (`src/config/mod.rs`)
+   - Derived from manifest.toml for IDE/tooling compatibility (`src/config/mod.rs`)
 
 3. **Template Engine** (`src/templates/mod.rs`)
    - Uses Handlebars for templating with MANIFEST-driven data
    - Generates `justfile`, `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml`
 
 4. **Generation Pipeline**
-   - `init` command → creates or loads MANIFEST.toml, then triggers template sync (src/commands/init.rs)
+   - `init` command → creates or loads manifest.toml, then triggers template sync (src/commands/init.rs)
    - `commands::generate` module → helper invoked by `init` that syncs workspace.yaml + templates (src/commands/generate.rs)
 
 ### Key Design Patterns
@@ -67,10 +67,10 @@ cargo run -- validate
 - `airis workspace sync-deps` コマンドで npm registry から実際のバージョンを解決
 - package.json の `pnpm.catalog` に数字を書き込む
 - Dependencies は `"dep": "catalog:"` で catalog を参照
-- **人間が編集するのは MANIFEST.toml だけ、package.json は生成物**
+- **人間が編集するのは manifest.toml だけ、package.json は生成物**
 
 **Design Philosophy**:
-- **Avoid hardcoded version numbers** in MANIFEST.toml
+- **Avoid hardcoded version numbers** in manifest.toml
 - Use version policies (`latest`, `lts`) instead
 - Auto-resolve to actual versions at `sync-deps` time
 - Lock files maintain reproducibility
@@ -81,8 +81,8 @@ cargo run -- validate
 
 - **src/main.rs**: CLI entry point using `clap` derive macros
 - **src/config/mod.rs**: Workspace YAML schema + helpers (generated metadata)
-- **src/manifest.rs**: MANIFEST.toml schema/helpers
-- **src/commands/init.rs**: Creates or reloads MANIFEST.toml, then re-syncs derived files
+- **src/manifest.rs**: manifest.toml schema/helpers
+- **src/commands/init.rs**: Creates or reloads manifest.toml, then re-syncs derived files
 - **src/commands/generate.rs**: Helper that syncs workspace.yaml + templates from an in-memory Manifest
 - **src/commands/manifest_cmd.rs**: Implements `airis manifest ...` plumbing for justfile
 - **src/templates/mod.rs**: Handlebars engine driven by MANIFEST data
@@ -91,7 +91,7 @@ cargo run -- validate
 
 ### DO NOT violate these rules when making changes:
 
-1. **Generated files must remain read-only**: Never encourage users to edit `justfile`, `package.json`, or `pnpm-workspace.yaml` directly. All changes go through `MANIFEST.toml`.
+1. **Generated files must remain read-only**: Never encourage users to edit `justfile`, `package.json`, or `pnpm-workspace.yaml` directly. All changes go through `manifest.toml`.
 
 2. **Docker-first is non-negotiable**: Do not weaken guard recipes or suggest host-level package manager usage (except for Rust projects with `runtime: local`).
 
@@ -140,7 +140,7 @@ When adding features:
   - Write to package.json `pnpm.catalog`
 - [ ] Update template generation
   - Generate package.json with `pnpm.catalog` from resolved versions
-  - Add `_generated.from = "MANIFEST.toml"` marker
+  - Add `_generated.from = "manifest.toml"` marker
 
 **Implementation Priority**:
 1. Schema addition (manifest.rs) - Define CatalogSection struct

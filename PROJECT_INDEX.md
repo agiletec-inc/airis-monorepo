@@ -92,12 +92,12 @@ airis-workspace/
 ---
 
 ### `src/commands/init.rs` (111 lines)
-**Purpose**: Initialize or optimize workspace files from MANIFEST.toml
+**Purpose**: Initialize or optimize workspace files from manifest.toml
 
 **Exported Functions**:
 - `run(force: bool) -> Result<()>`
   1. Detect current directory name for default project
-  2. Load existing `MANIFEST.toml` unless `--force` is supplied
+  2. Load existing `manifest.toml` unless `--force` is supplied
   3. Create and save a default manifest when missing or forced
   4. Invoke `generate::sync_from_manifest` to refresh workspace.yaml + templates
 
@@ -257,7 +257,7 @@ mkdir test-workspace && cd test-workspace
 airis-workspace init
 
 # Verify generated files
-ls -la  # Should see: MANIFEST.toml, workspace.yaml, justfile, package.json, pnpm-workspace.yaml
+ls -la  # Should see: manifest.toml, workspace.yaml, justfile, package.json, pnpm-workspace.yaml
 
 # Test Docker workflow
 just up
@@ -266,8 +266,8 @@ just workspace  # Enter container shell
 
 ### Making Changes
 ```bash
-# Edit MANIFEST.toml (e.g., add new app)
-vim MANIFEST.toml
+# Edit manifest.toml (e.g., add new app)
+vim manifest.toml
 
 # Re-sync derived files
 airis-workspace init

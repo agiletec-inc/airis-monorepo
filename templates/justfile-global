@@ -51,9 +51,10 @@ install:
     docker compose exec {{workspace_svc}} pnpm install
     @echo "{{green}}✅ Dependencies installed in container{{nc}}"
 
-# Enter workspace shell
+# Enter workspace shell (with command guards)
 workspace:
-    docker compose exec -it {{workspace_svc}} sh
+    @echo "{{blue}}🛡️  Command guards active (.airis/bin prepended to PATH){{nc}}"
+    docker compose exec -it -e PATH="/app/.airis/bin:$$PATH" {{workspace_svc}} sh
 
 # Alias for workspace
 sh: workspace

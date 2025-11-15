@@ -343,12 +343,16 @@ fn discover_compose_files(root: &Path) -> Result<DiscoveredComposeFiles> {
     }
 
     // Check workspace/
-    let workspace_compose = root.join("workspace").join("docker-compose.yml");
-    if workspace_compose.exists() {
-        compose_files.workspace = Some(workspace_compose);
+    let workspace_dir = root.join("workspace");
+    if workspace_dir.exists() {
+        let workspace_compose = workspace_dir.join("docker-compose.yml");
+        if workspace_compose.exists() {
+            compose_files.workspace = Some(workspace_compose);
+        }
+        // Note: docker-compose.override.yml is merged automatically by docker compose
     }
 
-    // Check supabase/
+    // Check supabase/ (with override support)
     let supabase_dir = root.join("supabase");
     if supabase_dir.exists() {
         let supabase_compose = supabase_dir.join("docker-compose.yml");
@@ -363,9 +367,12 @@ fn discover_compose_files(root: &Path) -> Result<DiscoveredComposeFiles> {
     }
 
     // Check traefik/
-    let traefik_compose = root.join("traefik").join("docker-compose.yml");
-    if traefik_compose.exists() {
-        compose_files.traefik = Some(traefik_compose);
+    let traefik_dir = root.join("traefik");
+    if traefik_dir.exists() {
+        let traefik_compose = traefik_dir.join("docker-compose.yml");
+        if traefik_compose.exists() {
+            compose_files.traefik = Some(traefik_compose);
+        }
     }
 
     Ok(compose_files)

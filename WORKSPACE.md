@@ -4,7 +4,7 @@
 
 ## ポリシー
 
-1. `workspace.yaml` はジェネレーターが再生成するので手動変更しない。ロジックや設定は `MANIFEST.toml` に置く。
+1. `workspace.yaml` はジェネレーターが再生成するので手動変更しない。ロジックや設定は `manifest.toml` に置く。
 2. Justfile / docker-compose / エージェントは `workspace.yaml` のメタ情報を参照するだけで、 dev/CI の意思決定には使わない。
 3. workspace の構成を変えたい場合は airis-workspace のテンプレートや設定を更新して再生成する。
 
@@ -16,6 +16,6 @@
 ## まとめ
 
 - `workspace.yaml`: 自動生成された構造メタデータ。編集禁止。
-- `MANIFEST.toml`: 人間が定義する開発/運用ロジックの真実。すべての dev/CI 対象はここで指定。
+- `manifest.toml`: 人間が定義する開発/運用ロジックの真実。すべての dev/CI 対象はここで指定。
 
 それぞれの責務を混ぜないことで、再生成しても壊れない安定したワークフローを維持できる。
