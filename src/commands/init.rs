@@ -43,7 +43,7 @@ pub fn run(force: bool) -> Result<()> {
             );
 
             // Create manifest from discovered structure
-            let manifest = create_manifest_from_discovery(&project_name, discovered);
+            let manifest = create_manifest_from_discovery(&project_name, discovered, &current_dir);
             manifest
                 .save(manifest_path)
                 .context("Failed to write manifest.toml")?;
@@ -81,21 +81,66 @@ pub fn run(force: bool) -> Result<()> {
 fn create_manifest_from_discovery(
     project_name: &str,
     discovered: discover::DiscoveredProject,
+    root: &Path,
 ) -> Manifest {
     use crate::manifest::*;
+    use std::collections::HashSet;
 
     let mut manifest = Manifest::default_with_project(project_name);
 
-    // Set apps from discovered
+    // Set dev.apps from discovered apps
     manifest.dev.apps = discovered
         .apps
         .iter()
         .map(|app| app.name.clone())
         .collect();
 
-    // TODO: Add discovered apps to manifest.apps section with proper configuration
-    // TODO: Add discovered libs
-    // TODO: Add catalog from discovered package.json
+    // Infer workspace patterns from discovered apps and libs
+    let mut workspace_patterns = HashSet::new();
+
+    // Extract parent directories from apps (convert to relative paths)
+    for app in &discovered.apps {
+        if let Ok(rel_path) = app.path.strip_prefix(root) {
+            if let Some(parent) = rel_path.parent() {
+                if let Some(parent_str) = parent.to_str() {
+                    if !parent_str.is_empty() {
+                        // Extract the top-level directory (e.g., "apps" from "apps/dashboard")
+                        let top_dir = parent_str.split('/').next().unwrap_or(parent_str);
+                        workspace_patterns.insert(format!("{}/*", top_dir));
+                    }
+                }
+            }
+        }
+    }
+
+    // Extract parent directories from libs (convert to relative paths)
+    for lib in &discovered.libs {
+        if let Ok(rel_path) = lib.path.strip_prefix(root) {
+            if let Some(parent) = rel_path.parent() {
+                if let Some(parent_str) = parent.to_str() {
+                    if !parent_str.is_empty() {
+                        // Extract the top-level directory (e.g., "libs" from "libs/ui")
+                        let top_dir = parent_str.split('/').next().unwrap_or(parent_str);
+                        workspace_patterns.insert(format!("{}/*", top_dir));
+                    }
+                }
+            }
+        }
+    }
+
+    // Convert to sorted Vec for consistent output
+    let mut workspaces: Vec<String> = workspace_patterns.into_iter().collect();
+    workspaces.sort();
+    manifest.packages.workspaces = workspaces;
+
+    // Add catalog entries from discovered package.json
+    for entry in discovered.catalog {
+        manifest
+            .packages
+            .root
+            .dev_dependencies
+            .insert(entry.name, entry.version);
+    }
 
     manifest
 }
