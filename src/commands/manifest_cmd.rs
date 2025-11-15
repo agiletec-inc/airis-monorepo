@@ -19,7 +19,7 @@ pub fn run(action: ManifestAction) -> Result<()> {
 
     match action {
         ManifestAction::DevApps => {
-            for app in manifest.dev.apps {
+            for app in manifest.dev.autostart {
                 println!("{app}");
             }
         }

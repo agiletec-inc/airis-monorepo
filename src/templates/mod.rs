@@ -82,7 +82,7 @@ impl TemplateEngine {
         let packages = if manifest.packages.workspaces.is_empty() {
             manifest
                 .dev
-                .apps
+                .autostart
                 .iter()
                 .map(|name| format!("apps/{}", name))
                 .collect()
@@ -127,7 +127,7 @@ impl TemplateEngine {
             "workspace_image": manifest.workspace.image,
             "workdir": manifest.workspace.workdir,
             "extra_mounts": manifest.workspace.volumes,
-            "depends_on": manifest.dev.depends_on,
+            "depends_on": Vec::<String>::new(),
             "services": services,
             "named_volumes": named_volumes,
         }))

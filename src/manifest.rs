@@ -9,16 +9,32 @@ use crate::config::{Mode, WorkspaceApp, WorkspaceConfig, Workspaces};
 
 pub const MANIFEST_FILE: &str = "manifest.toml";
 
+fn default_version() -> u32 {
+    1
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Manifest {
+    #[serde(default = "default_version")]
+    pub version: u32,
+    #[serde(default)]
+    pub mode: Mode,
     #[serde(default)]
     pub workspace: WorkspaceSection,
+    #[serde(default)]
+    pub catalog: IndexMap<String, String>,
+    #[serde(default)]
+    pub workspaces: WorkspacesSection,
     #[serde(default)]
     pub dev: DevSection,
     #[serde(default)]
     pub apps: IndexMap<String, AppConfig>,
     #[serde(default)]
     pub libs: IndexMap<String, LibConfig>,
+    #[serde(default)]
+    pub docker: DockerSection,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub just: Option<JustSection>,
     #[serde(default)]
     pub service: IndexMap<String, ServiceConfig>,
     #[serde(default)]
@@ -94,6 +110,8 @@ impl Manifest {
         };
 
         Manifest {
+            version: 1,
+            mode: Mode::DockerFirst,
             workspace: WorkspaceSection {
                 name: name.to_string(),
                 package_manager: "pnpm@10.22.0".to_string(),
@@ -102,9 +120,13 @@ impl Manifest {
                 workdir: "/app".to_string(),
                 volumes: vec!["workspace-node-modules:/app/node_modules".to_string()],
             },
+            catalog: IndexMap::new(),
+            workspaces: WorkspacesSection::default(),
             dev: DevSection::default(),
             apps: IndexMap::new(),
             libs: IndexMap::new(),
+            docker: DockerSection::default(),
+            just: None,
             service: IndexMap::new(),
             rule,
             packages,
@@ -115,11 +137,11 @@ impl Manifest {
     pub fn to_workspace_config(&self) -> WorkspaceConfig {
         let mut config = WorkspaceConfig::default();
         config.name = self.workspace.name.clone();
-        config.mode = Mode::DockerFirst;
+        config.mode = self.mode.clone();
 
         let apps = self
             .dev
-            .apps
+            .autostart
             .iter()
             .map(|name| WorkspaceApp::Simple(name.clone()))
             .collect();
@@ -181,9 +203,13 @@ fn default_workspace_workdir() -> String {
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct DevSection {
     #[serde(default)]
-    pub apps: Vec<String>,
-    #[serde(default)]
-    pub depends_on: Vec<String>,
+    pub autostart: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supabase: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traefik: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -294,4 +320,50 @@ pub struct GuardsSection {
     /// Commands to deny with custom messages
     #[serde(default)]
     pub deny_with_message: IndexMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct WorkspacesSection {
+    #[serde(default)]
+    pub apps: Vec<WorkspaceAppMeta>,
+    #[serde(default)]
+    pub libs: Vec<WorkspaceLibMeta>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct WorkspaceAppMeta {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub app_type: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct WorkspaceLibMeta {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub lib_type: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct DockerSection {
+    #[serde(rename = "baseImage", default)]
+    pub base_image: String,
+    #[serde(default)]
+    pub workdir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<DockerWorkspaceSection>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DockerWorkspaceSection {
+    pub service: String,
+    #[serde(default)]
+    pub volumes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct JustSection {
+    pub output: String,
+    #[serde(default)]
+    pub features: Vec<String>,
 }

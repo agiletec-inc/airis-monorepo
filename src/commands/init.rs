@@ -88,8 +88,8 @@ fn create_manifest_from_discovery(
 
     let mut manifest = Manifest::default_with_project(project_name);
 
-    // Set dev.apps from discovered apps
-    manifest.dev.apps = discovered
+    // Set dev.autostart from discovered apps
+    manifest.dev.autostart = discovered
         .apps
         .iter()
         .map(|app| app.name.clone())
