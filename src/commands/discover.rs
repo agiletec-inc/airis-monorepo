@@ -52,6 +52,7 @@ pub enum AppType {
 }
 
 impl AppType {
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         match self {
             AppType::NextJs => "nextjs",

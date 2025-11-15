@@ -119,6 +119,20 @@ fn create_manifest_from_discovery(
         );
     }
 
+    // Add lib configurations
+    for lib in &discovered.libs {
+        let rel_path = lib.path.strip_prefix(root).ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.to_string());
+
+        manifest.libs.insert(
+            lib.name.clone(),
+            LibConfig {
+                path: rel_path,
+            },
+        );
+    }
+
     // Infer workspace patterns from discovered apps and libs
     let mut workspace_patterns = HashSet::new();
 

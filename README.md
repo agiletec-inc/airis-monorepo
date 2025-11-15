@@ -6,6 +6,51 @@ Stop fighting with dependencies, broken builds, and cross-platform issues. AIris
 
 ---
 
+## 🌟 Part of the AIRIS Ecosystem
+
+AIris Workspace is the **development environment enforcer** of the **AIRIS Suite** - ensuring consistent, Docker-first monorepo workflows.
+
+### The AIRIS Suite
+
+| Component | Purpose | For Who |
+|-----------|---------|---------|
+| **[airis-agent](https://github.com/agiletec-inc/airis-agent)** | 🧠 Intelligence layer for all editors (confidence checks, deep research, self-review) | All developers using Claude Code, Cursor, Windsurf, Codex, Gemini CLI |
+| **[airis-mcp-gateway](https://github.com/agiletec-inc/airis-mcp-gateway)** | 🚪 Unified MCP proxy with 90% token reduction via lazy loading | Claude Code users who want faster startup |
+| **[mindbase](https://github.com/kazukinakai/mindbase)** | 💾 Local cross-session memory with semantic search | Developers who want persistent conversation history |
+| **airis-workspace** (this repo) | 🏗️ Docker-first monorepo manager | Teams building monorepos |
+| **[airiscode](https://github.com/agiletec-inc/airiscode)** | 🖥️ Terminal-first autonomous coding agent | CLI-first developers |
+
+### MCP Servers (Included via Gateway)
+
+- **[airis-mcp-supabase-selfhost](https://github.com/agiletec-inc/airis-mcp-supabase-selfhost)** - Self-hosted Supabase MCP with RLS support
+- **mindbase** - Memory search & storage tools (`mindbase_search`, `mindbase_store`)
+
+### Quick Install: Complete AIRIS Suite
+
+```bash
+# Option 1: Install airis-agent plugin (recommended for Claude Code users)
+/plugin marketplace add agiletec-inc/airis-agent
+/plugin install airis-agent
+
+# Option 2: Clone all AIRIS repositories at once
+uv run airis-agent install-suite --profile core
+
+# Option 3: Just use airis-workspace standalone
+cargo install airis
+cd your-monorepo && airis init
+```
+
+**What you get with the full suite:**
+- ✅ Confidence-gated workflows (prevents wrong-direction coding)
+- ✅ Deep research with evidence synthesis
+- ✅ 94% token reduction via repository indexing
+- ✅ Cross-session memory across all editors
+- ✅ Self-review and post-implementation validation
+
+---
+
+---
+
 ## 🎯 Problem Solved
 
 ### ❌ Before
