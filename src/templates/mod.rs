@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use handlebars::Handlebars;
+use indexmap::IndexMap;
 use serde_json::json;
 
 use crate::manifest::{MANIFEST_FILE, Manifest};
@@ -90,9 +91,17 @@ impl TemplateEngine {
             manifest.packages.workspaces.clone()
         };
 
+        // Convert catalog entries to string map for handlebars
+        let catalog_strings: IndexMap<String, String> = manifest
+            .packages
+            .catalog
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().to_string()))
+            .collect();
+
         Ok(json!({
             "packages": packages,
-            "catalog": manifest.packages.catalog,
+            "catalog": catalog_strings,
             "has_catalog": !manifest.packages.catalog.is_empty(),
             "manifest": MANIFEST_FILE,
         }))

@@ -252,11 +252,60 @@ pub struct PackagesSection {
     #[serde(default)]
     pub workspaces: Vec<String>,
     #[serde(default)]
-    pub catalog: IndexMap<String, String>,
+    pub catalog: IndexMap<String, CatalogEntry>,
     #[serde(default)]
     pub root: PackageDefinition,
     #[serde(rename = "app", default)]
     pub app: Vec<AppPackageDefinition>,
+}
+
+/// Catalog entry can be:
+/// - "latest" → resolve to latest npm version
+/// - "lts" → resolve to LTS version
+/// - "^5.0.0" → specific semver (used as-is)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CatalogEntry {
+    Policy(VersionPolicy),
+    Version(String),
+}
+
+impl Default for CatalogEntry {
+    fn default() -> Self {
+        CatalogEntry::Version("*".to_string())
+    }
+}
+
+impl CatalogEntry {
+    /// Returns the resolved version string (for already-resolved entries)
+    /// or the policy name (for unresolved entries)
+    pub fn as_str(&self) -> &str {
+        match self {
+            CatalogEntry::Policy(p) => p.as_str(),
+            CatalogEntry::Version(v) => v.as_str(),
+        }
+    }
+
+    /// Check if this entry needs resolution (is a policy)
+    pub fn needs_resolution(&self) -> bool {
+        matches!(self, CatalogEntry::Policy(_))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum VersionPolicy {
+    Latest,
+    Lts,
+}
+
+impl VersionPolicy {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VersionPolicy::Latest => "latest",
+            VersionPolicy::Lts => "lts",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]

@@ -1,0 +1,22 @@
+{
+  "name": "airis-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.22.0",
+  "dependencies": {
+  },
+  "devDependencies": {
+  },
+  "scripts": {
+    "build": "echo &#x27;Run: just build-&lt;app-name&gt;&#x27;",
+    "dev": "echo &#x27;Run: just dev-&lt;app-name&gt;&#x27;",
+    "lint": "echo &#x27;Run: just lint&#x27;",
+    "test": "echo &#x27;Run: just test&#x27;"
+  },
+  "_generated": {
+    "by": "airis init",
+    "from": "manifest.toml",
+    "warning": "⚠️  DO NOT EDIT - Update manifest.toml then rerun `airis init`"
+  }
+}

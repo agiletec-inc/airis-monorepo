@@ -34,6 +34,10 @@ enum Commands {
 
     /// Validate workspace configuration
     Validate,
+
+    /// Sync dependencies: resolve catalog policies to actual versions
+    #[command(name = "sync-deps")]
+    SyncDeps,
 }
 
 #[derive(Subcommand)]
@@ -77,6 +81,7 @@ fn main() -> Result<()> {
         Commands::Validate => {
             println!("⚠️  Validate command not yet implemented");
         }
+        Commands::SyncDeps => commands::sync_deps::run()?,
     }
 
     Ok(())

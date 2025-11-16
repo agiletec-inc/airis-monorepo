@@ -168,7 +168,7 @@ fn create_manifest_from_discovery(
         manifest
             .packages
             .catalog
-            .insert(entry.name, entry.version);
+            .insert(entry.name, crate::manifest::CatalogEntry::Version(entry.version));
     }
 
     manifest
