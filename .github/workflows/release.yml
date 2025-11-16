@@ -21,22 +21,52 @@ jobs:
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Extract version from Cargo.toml
+      - name: Determine version bump
         id: version
         run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version: $VERSION"
+          # Get latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT_VERSION=${LATEST_TAG#v}
 
-      - name: Check if version tag exists
+          echo "📦 Current version: $CURRENT_VERSION"
+
+          # Parse semver
+          IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+
+          # Get commit messages since last tag
+          COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          # Determine bump type based on conventional commits
+          BUMP_TYPE="patch"
+
+          if echo "$COMMITS" | grep -qE '^(feat!:|fix!:|BREAKING CHANGE:)'; then
+            BUMP_TYPE="major"
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP_TYPE="minor"
+          fi
+
+          # Calculate new version
+          if [ "$BUMP_TYPE" = "major" ]; then
+            NEW_VERSION="$((major + 1)).0.0"
+          elif [ "$BUMP_TYPE" = "minor" ]; then
+            NEW_VERSION="${major}.$((minor + 1)).0"
+          else
+            NEW_VERSION="${major}.${minor}.$((patch + 1))"
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "🚀 Bumping $CURRENT_VERSION → $NEW_VERSION ($BUMP_TYPE)"
+
+      - name: Check if already released
         id: check_tag
         run: |
           if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Tag v${{ steps.version.outputs.version }} already exists, skipping release"
+            echo "⚠️  Tag v${{ steps.version.outputs.version }} already exists, skipping"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ New version detected: v${{ steps.version.outputs.version }}"
+            echo "✅ Will create release v${{ steps.version.outputs.version }}"
           fi
 
       - name: Detect architecture

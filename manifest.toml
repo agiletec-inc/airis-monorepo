@@ -223,10 +223,3 @@ clean = "echo '🧹 Cleaning build artifacts...'; find . -type d -name 'node_mod
 "docker compose down" = "airis down"
 "docker exec" = "airis shell"
 
-[versioning]
-strategy = "conventional-commits"
-source = "1.3.0"
-
-[docs]
-targets = []
-mode = "warn"
