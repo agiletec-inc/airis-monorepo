@@ -1,20 +1,11 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::WorkspaceConfig;
 use crate::manifest::Manifest;
 use crate::templates::TemplateEngine;
 
-const WORKSPACE_FILE: &str = "workspace.yaml";
-
 /// Sync justfile/docker-compose/package.json from manifest.toml contents
 pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
-    println!("{}", "🧱 Syncing workspace.yaml metadata...".bright_blue());
-    let workspace_config: WorkspaceConfig = manifest.to_workspace_config();
-    workspace_config
-        .save(WORKSPACE_FILE)
-        .context("Failed to write workspace.yaml")?;
-
     let engine = TemplateEngine::new()?;
     println!("{}", "🧩 Rendering templates...".bright_blue());
     generate_docker_compose(&manifest, &engine)?;
@@ -24,7 +15,6 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     println!();
     println!("{}", "✅ Generated files:".green());
-    println!("   - manifest-driven workspace.yaml");
     println!("   - docker-compose.yml");
     println!("   - justfile");
     println!("   - package.json");
