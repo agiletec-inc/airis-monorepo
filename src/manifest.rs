@@ -292,6 +292,7 @@ impl Default for CatalogEntry {
 impl CatalogEntry {
     /// Returns the resolved version string (for already-resolved entries)
     /// or the policy/follow target (for unresolved entries)
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         match self {
             CatalogEntry::Follow(f) => &f.follow,
