@@ -12,6 +12,8 @@ on:
 jobs:
   release:
     runs-on: macos-latest
+    permissions:
+      contents: write  # Required for creating releases and pushing tags
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
