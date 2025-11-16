@@ -18,11 +18,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize MANIFEST.toml + workspace metadata
-    Init {
-        /// Overwrite existing MANIFEST/workspace files
-        #[arg(short, long)]
-        force: bool,
-    },
+    Init,
 
     /// Query MANIFEST.toml data (used by justfile)
     Manifest {
@@ -64,7 +60,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { force } => commands::init::run(force)?,
+        Commands::Init => commands::init::run()?,
         Commands::Manifest { action } => {
             use commands::manifest_cmd::{self, ManifestAction};
 

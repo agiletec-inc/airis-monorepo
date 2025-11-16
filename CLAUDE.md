@@ -30,12 +30,55 @@ cargo test
 # Test init command (creates manifest.toml + workspace metadata)
 cargo run -- init
 
-# Test with force flag
-cargo run -- init --force
-
 # Validate MANIFEST + workspace metadata
 cargo run -- validate
 ```
+
+## ⚠️ airis init の仕様（絶対厳守）
+
+**manifest.toml は神聖不可侵。**
+
+`airis init` コマンドは manifest.toml を絶対に書き換えてはならない。
+
+### 動作仕様
+
+1. **manifest.toml が存在する場合**
+   - 読み込み専用として扱う
+   - package.json, pnpm-workspace.yaml, justfile, workspace.yaml を再生成
+   - manifest.toml 自体は一切書き換えない
+
+2. **manifest.toml が存在しない場合（初回のみ）**
+   - 初回テンプレートを生成
+   - 他のファイルも併せて生成
+
+3. **manifest.toml を上書きする機能は存在しない**
+   - `--force` フラグは存在しない
+   - `--reset` コマンドは存在しない
+   - manifest.toml を削除・上書きする手段は CLI に存在しない
+
+### 実装ガード
+
+```rust
+pub fn run() -> Result<()> {
+    let manifest_path = Path::new(MANIFEST_FILE);
+
+    if manifest_path.exists() {
+        // ✅ READ-ONLY MODE: Never modify existing manifest.toml
+        let manifest = Manifest::load(manifest_path)?;
+        Generator::from(&manifest).write_all()?;
+        return Ok(());
+    }
+
+    // ✅ INITIAL CREATION MODE: Only when manifest.toml doesn't exist
+    let template = Manifest::bootstrap_from_repo()?;
+    template.save(manifest_path)?;
+    Generator::from(&template).write_all()?;
+
+    Ok(())
+}
+```
+
+**この仕様に違反する実装は全てバグとして扱う。**
 
 ## Architecture & Code Structure
 

@@ -172,44 +172,44 @@ clean:
     find . -name ".DS_Store" -delete 2>/dev/null || true
 
 dev-all:
-    apps="$(airis manifest dev-apps)"
-    if [ -z "$$apps" ]; then
-        echo "⚠️  No dev apps defined in manifest.toml (.dev.apps)";
-        exit 0;
-    fi
-    echo "$$apps" | while read -r app; do
-        [ -z "$$app" ] && continue
-        echo "▶️  docker compose exec {{workspace}} pnpm --filter $$app dev"
-        docker compose exec {{workspace}} pnpm --filter "$$app" dev &
-    done
-    wait
+	apps="$(airis manifest dev-apps)"
+	if [ -z "$$apps" ]; then \
+		echo "⚠️  No dev apps defined in manifest.toml (.dev.apps)"; \
+		exit 0; \
+	fi
+	echo "$$apps" | while read -r app; do \
+		[ -z "$$app" ] && continue; \
+		echo "▶️  docker compose exec {{workspace}} pnpm --filter $$app dev"; \
+		docker compose exec {{workspace}} pnpm --filter "$$app" dev & \
+	done
+	wait
 
 {{#if has_verify_rule}}
 verify:
-    cmds="$(airis manifest rule verify)"
-    if [ -z "$$cmds" ]; then
-        echo "⚠️  [rule.verify] is empty in manifest.toml";
-        exit 1;
-    fi
-    echo "$$cmds" | while read -r cmd; do
-        [ -z "$$cmd" ] && continue
-        echo ">> $$cmd"
-        eval "$$cmd"
-    done
+	cmds="$(airis manifest rule verify)"
+	if [ -z "$$cmds" ]; then \
+		echo "⚠️  [rule.verify] is empty in manifest.toml"; \
+		exit 1; \
+	fi
+	echo "$$cmds" | while read -r cmd; do \
+		[ -z "$$cmd" ] && continue; \
+		echo ">> $$cmd"; \
+		eval "$$cmd"; \
+	done
 {{/if}}
 
 {{#if has_ci_rule}}
 ci:
-    cmds="$(airis manifest rule ci)"
-    if [ -z "$$cmds" ]; then
-        echo "⚠️  [rule.ci] is empty in manifest.toml";
-        exit 1;
-    fi
-    echo "$$cmds" | while read -r cmd; do
-        [ -z "$$cmd" ] && continue
-        echo ">> $$cmd"
-        eval "$$cmd"
-    done
+	cmds="$(airis manifest rule ci)"
+	if [ -z "$$cmds" ]; then \
+		echo "⚠️  [rule.ci] is empty in manifest.toml"; \
+		exit 1; \
+	fi
+	echo "$$cmds" | while read -r cmd; do \
+		[ -z "$$cmd" ] && continue; \
+		echo ">> $$cmd"; \
+		eval "$$cmd"; \
+	done
 {{/if}}
 
 [private]

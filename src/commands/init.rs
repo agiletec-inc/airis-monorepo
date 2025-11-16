@@ -8,54 +8,44 @@ use crate::commands::{discover, generate};
 use crate::manifest::{Manifest, MANIFEST_FILE};
 
 /// Initialize or optimize manifest-driven workspace files
-pub fn run(force: bool) -> Result<()> {
+///
+/// IMPORTANT: This command NEVER overwrites existing manifest.toml.
+/// - If manifest.toml exists: read-only mode, regenerate other files
+/// - If manifest.toml does not exist: create initial template
+pub fn run() -> Result<()> {
     let manifest_path = Path::new(MANIFEST_FILE);
-    let project_name = env::current_dir()
-        .ok()
-        .and_then(|dir| dir.file_name().map(|n| n.to_string_lossy().to_string()))
-        .unwrap_or_else(|| "my-monorepo".to_string());
+    let current_dir = env::current_dir()?;
 
-    let manifest = if manifest_path.exists() && !force {
-        println!("{}", "📖 Loading existing manifest.toml...".bright_blue());
+    let manifest = if manifest_path.exists() {
+        // ✅ READ-ONLY MODE: Never modify existing manifest.toml
+        println!("{}", "📖 Using existing manifest.toml as source of truth".bright_blue());
         Manifest::load(manifest_path)?
     } else {
-        // Check if this is an existing project with apps/libs
-        let current_dir = env::current_dir()?;
+        // ✅ INITIAL CREATION MODE: Only happens when manifest.toml doesn't exist
+        let project_name = current_dir
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "my-monorepo".to_string());
+
         let has_apps = current_dir.join("apps").exists();
         let has_libs = current_dir.join("libs").exists();
 
         if has_apps || has_libs {
-            println!(
-                "{}",
-                "🔍 Existing project detected! Auto-discovering structure..."
-                    .bright_blue()
-            );
+            println!("{}", "🔍 Existing project detected! Auto-discovering structure...".bright_blue());
             println!();
 
-            // Discover project structure
             let discovered = discover::discover_project(&current_dir)?;
 
             println!();
-            println!(
-                "{}",
-                "📝 Generating manifest.toml from discovered structure..."
-                    .bright_blue()
-            );
+            println!("{}", "📝 Generating manifest.toml from discovered structure...".bright_blue());
 
-            // Create manifest from discovered structure
             let manifest = create_manifest_from_discovery(&project_name, discovered, &current_dir);
             manifest
                 .save(manifest_path)
                 .context("Failed to write manifest.toml")?;
             manifest
         } else {
-            // New project - use default template
-            let action = if manifest_path.exists() {
-                "♻️  Re-initializing manifest.toml template..."
-            } else {
-                "📝 Generating manifest.toml template..."
-            };
-            println!("{}", action.bright_blue());
+            println!("{}", "📝 Generating manifest.toml template...".bright_blue());
             let manifest = Manifest::default_with_project(&project_name);
             manifest
                 .save(manifest_path)
@@ -64,19 +54,21 @@ pub fn run(force: bool) -> Result<()> {
         }
     };
 
-    println!("{}", "🧩 Optimizing workspace files...".bright_blue());
+    println!("{}", "🧩 Regenerating workspace files from manifest.toml...".bright_blue());
     generate::sync_from_manifest(&manifest)?;
 
     println!();
     println!("{}", "✅ Workspace synced from manifest.toml".green());
     println!("{}", "Next steps:".bright_yellow());
-    println!("  1. Review generated manifest.toml");
-    println!("  2. Edit if needed (apps, libs, catalog policies)");
-    println!("  3. Re-run `airis init` to re-sync files");
-    println!("  4. Run `just up`");
+    println!("  1. Edit manifest.toml if needed (apps, libs, catalog)");
+    println!("  2. Re-run `airis init` to re-sync generated files");
+    println!("  3. Run `just up` to start development");
 
     Ok(())
 }
+
+// DELETED: merge_discovery_into_manifest() is no longer used
+// manifest.toml is never modified after initial creation
 
 fn create_manifest_from_discovery(
     project_name: &str,
@@ -175,8 +167,7 @@ fn create_manifest_from_discovery(
     for entry in discovered.catalog {
         manifest
             .packages
-            .root
-            .dev_dependencies
+            .catalog
             .insert(entry.name, entry.version);
     }
 
