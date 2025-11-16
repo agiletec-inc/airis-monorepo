@@ -97,15 +97,21 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: false
-          files: airis-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ARCH=${{ steps.arch.outputs.arch }}
+
+          echo "🚀 Creating GitHub Release v${VERSION}..."
+
+          # Create release with gh CLI
+          gh release create "v${VERSION}" \
+            --title "Release v${VERSION}" \
+            --notes "Auto-generated release from CI/CD" \
+            "airis-${VERSION}-${ARCH}.tar.gz"
+
+          echo "✅ Release v${VERSION} created successfully!"
 
       - name: Update Homebrew formula
         if: steps.check_tag.outputs.exists == 'false'
