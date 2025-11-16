@@ -39,6 +39,12 @@ enum Commands {
         action: HooksCommands,
     },
 
+    /// Documentation management (CLAUDE.md, .cursorrules, etc.)
+    Docs {
+        #[command(subcommand)]
+        action: DocsCommands,
+    },
+
     /// Validate workspace configuration
     Validate,
 
@@ -105,6 +111,17 @@ enum HooksCommands {
 }
 
 #[derive(Subcommand)]
+enum DocsCommands {
+    /// Wrap a documentation file to point to manifest.toml
+    Wrap {
+        /// File to wrap (CLAUDE.md, .cursorrules, GEMINI.md, AGENTS.md)
+        target: String,
+    },
+    /// List managed documentation files
+    List,
+}
+
+#[derive(Subcommand)]
 enum ManifestCommands {
     /// Print newline-separated list of dev apps
     #[command(name = "dev-apps")]
@@ -138,6 +155,10 @@ fn main() -> Result<()> {
         },
         Commands::Hooks { action } => match action {
             HooksCommands::Install => commands::hooks::install()?,
+        },
+        Commands::Docs { action } => match action {
+            DocsCommands::Wrap { target } => commands::docs::wrap(&target)?,
+            DocsCommands::List => commands::docs::list()?,
         },
         Commands::Validate => {
             println!("⚠️  Validate command not yet implemented");

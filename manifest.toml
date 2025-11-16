@@ -225,4 +225,4 @@ clean = "echo '🧹 Cleaning build artifacts...'; find . -type d -name 'node_mod
 
 [versioning]
 strategy = "conventional-commits"
-source = "1.1.0"
+source = "1.2.0"

@@ -1,0 +1,131 @@
+name: Release to Homebrew
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.toml'
+      - 'manifest.toml'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Extract version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Check if version tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Tag v${{ steps.version.outputs.version }} already exists, skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ New version detected: v${{ steps.version.outputs.version }}"
+          fi
+
+      - name: Detect architecture
+        if: steps.check_tag.outputs.exists == 'false'
+        id: arch
+        run: |
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            echo "arch=aarch64-apple-darwin" >> $GITHUB_OUTPUT
+          else
+            echo "arch=x86_64-apple-darwin" >> $GITHUB_OUTPUT
+          fi
+          echo "📦 Architecture: $ARCH"
+
+      - name: Build release binary
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          cargo build --release
+          strip target/release/airis
+          tar -czf airis-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.tar.gz -C target/release airis
+
+      - name: Calculate SHA256
+        if: steps.check_tag.outputs.exists == 'false'
+        id: sha256
+        run: |
+          SHA256=$(shasum -a 256 airis-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.tar.gz | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "🔐 SHA256: $SHA256"
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: airis-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew formula
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -e  # Exit on error
+
+          VERSION=${{ steps.version.outputs.version }}
+          SHA256=${{ steps.sha256.outputs.sha256 }}
+          ARCH=${{ steps.arch.outputs.arch }}
+
+          echo "📦 Updating Homebrew formula..."
+          echo "   Version: $VERSION"
+          echo "   SHA256: $SHA256"
+          echo "   Arch: $ARCH"
+
+          # Clone homebrew-tap repository
+          git clone https://$HOMEBREW_TAP_TOKEN@github.com/agiletec-inc/homebrew-tap.git
+          cd homebrew-tap
+
+          # Ensure we're on main branch
+          git checkout main || git checkout -b main
+
+          # Create Formula directory if it doesn't exist
+          mkdir -p Formula
+
+          # Update formula
+          cat > Formula/airis.rb <<EOF
+          class Airis < Formula
+            desc "Docker-first monorepo workspace manager for rapid prototyping"
+            homepage "https://github.com/agiletec-inc/airis-workspace"
+            url "https://github.com/agiletec-inc/airis-workspace/releases/download/v${VERSION}/airis-${VERSION}-${ARCH}.tar.gz"
+            sha256 "${SHA256}"
+            version "${VERSION}"
+
+            def install
+              bin.install "airis"
+            end
+
+            test do
+              system "#{bin}/airis", "--version"
+            end
+          end
+          EOF
+
+          # Commit and push
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/airis.rb
+          git commit -m "Update airis to v${VERSION}" || echo "No changes to commit"
+          git push origin main || echo "Push failed, check if token has permissions"
+
+          echo "✅ Homebrew formula updated to v${VERSION}"

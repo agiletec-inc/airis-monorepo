@@ -1,0 +1,6 @@
+[alias]
+# Build and install to ~/.cargo/bin in one command
+build-install = "install --path ."
+
+# Watch mode with auto-install on changes
+watch-install = "watch -x install --path ."

@@ -1,6 +1,6 @@
 # Airis Manifest Specification
 
-**Version**: 1.0.2
+**Version**: 1.1.0
 **Format**: TOML
 **File**: `manifest.toml`
 
@@ -249,6 +249,49 @@ Automatically translate banned commands to safe alternatives (LLM-targeted).
 
 ---
 
+### Versioning Section (NEW in v1.1.0)
+
+Define versioning strategy and source of truth for automatic version bumping.
+
+```toml
+[versioning]
+strategy = "conventional-commits"   # or "auto" or "manual"
+source = "1.1.0"                   # Current version (synced to Cargo.toml)
+```
+
+**Strategy Options**:
+- `"conventional-commits"`: Auto-detect bump type from commit message
+  - `feat:` → minor bump
+  - `fix:` → patch bump
+  - `BREAKING CHANGE` or `!:` → major bump
+- `"auto"`: Default to minor bump
+- `"manual"`: Disable auto-bump (use `airis bump-version` explicitly)
+
+**Usage**:
+```bash
+# Install Git pre-commit hook
+airis hooks install
+
+# Manual version bump
+airis bump-version --major    # 1.0.0 → 2.0.0
+airis bump-version --minor    # 1.0.0 → 1.1.0
+airis bump-version --patch    # 1.0.0 → 1.0.1
+
+# Auto-detect from commit message (requires strategy = "conventional-commits")
+airis bump-version --auto
+
+# Or just commit with conventional format
+git commit -m "feat: add dark mode"
+# → Pre-commit hook auto-bumps 1.0.0 → 1.1.0
+```
+
+**Sync Behavior**:
+- `manifest.toml` `[versioning.source]` is the single source of truth
+- `Cargo.toml` version is automatically synced on bump
+- Git pre-commit hook runs `airis bump-version --auto` before commit
+
+---
+
 ### Just Section (Optional)
 
 Configure justfile generation (optional in v1.0.2+).
@@ -356,10 +399,33 @@ workspace = "workspace/docker-compose.yml"
 supabase = ["supabase/docker-compose.yml"]
 traefik = "traefik/docker-compose.yml"
 
-# Just
+# Just (optional in v1.0.2+)
 [just]
 output = "justfile.generated"
 features = ["docker-first-guard", "type-specific-commands"]
+
+# Commands (v1.0.2+)
+[commands]
+install = "docker compose exec workspace pnpm install"
+up = "docker compose up -d"
+down = "docker compose down"
+dev = "docker compose exec workspace pnpm dev"
+build = "docker compose exec workspace pnpm build"
+
+# Guards (v1.0.2+)
+[guards]
+deny = ["npm", "yarn", "pnpm", "bun"]
+forbid = ["npm", "yarn", "pnpm", "docker", "docker-compose"]
+
+# Remap (v1.0.2+)
+[remap]
+"npm install" = "airis install"
+"pnpm install" = "airis install"
+
+# Versioning (v1.1.0+)
+[versioning]
+strategy = "conventional-commits"
+source = "1.1.0"
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 **Docker-first monorepo workspace manager for rapid prototyping**
 
-Stop fighting with dependencies, broken builds, and cross-platform issues. AIris Workspace enforces Docker-first development with a single manifest file and automatic Just/package.json generation.
+Stop fighting with dependencies, broken builds, and cross-platform issues. AIris Workspace enforces Docker-first development with a single manifest file and automatic generation of all derived files.
 
 ---
 
@@ -61,10 +61,11 @@ cd your-monorepo && airis init
 - "Works on my machine" syndrome
 
 ### ✅ After
-- **Docker-first enforced**: `just pnpm` → Error with helpful message
+- **Docker-first enforced**: `pnpm install` → Blocked with helpful error message
 - **Single source of truth**: `manifest.toml` → auto-generate everything
 - **Auto-version resolution**: `react = "latest"` → automatically resolves to `^19.2.0`
-- **LLM-friendly**: Clear error messages, MCP server integration
+- **Command unification**: All operations via `airis` CLI (no just dependency)
+- **LLM-friendly**: Clear error messages, command guards, MCP server integration
 - **Cross-platform**: macOS/Linux/Windows via Docker
 - **Rust special case**: Local builds for Apple Silicon GPU support
 
@@ -163,8 +164,24 @@ port = 3000
 image = "postgres:16-alpine"
 port = 5432
 
-[rule.verify]
-commands = ["just lint", "just test-all"]
+[commands]
+install = "docker compose exec workspace pnpm install"
+dev = "docker compose exec workspace pnpm dev"
+build = "docker compose exec workspace pnpm build"
+test = "docker compose exec workspace pnpm test"
+lint = "docker compose exec workspace pnpm lint"
+
+[guards]
+deny = ["npm", "yarn", "pnpm", "bun"]
+forbid = ["npm", "yarn", "pnpm", "docker", "docker-compose"]
+
+[remap]
+"npm install" = "airis install"
+"pnpm install" = "airis install"
+
+[versioning]
+strategy = "conventional-commits"
+source = "1.1.0"
 ```
 
 ### 2. Version Policy Resolution
@@ -198,24 +215,40 @@ catalog:
 
 **You never manually update version numbers again.**
 
-### 3. Docker-First Enforcement
+### 3. Docker-First Enforcement (v1.0.2+)
 
 ```bash
-$ just pnpm install
+$ pnpm install
 ❌ ERROR: 'pnpm' must run inside Docker workspace
 
-   To run pnpm:
-     1. Enter workspace: just workspace
-     2. Run command:     pnpm install
+   Use: airis install
+
+   Or configure [remap] in manifest.toml to auto-translate commands.
 ```
 
-### 4. Just > Make
+**Guard System**:
+- `[guards.deny]`: Block commands for all users
+- `[guards.forbid]`: LLM-specific blocking
+- `[remap]`: Auto-translate banned commands to safe alternatives
 
-- ✅ No tab hell
-- ✅ Cross-platform (Windows works!)
-- ✅ Natural variable syntax: `{{project}}`
-- ✅ LLM-friendly (simple syntax)
-- ✅ Rust-powered (fast)
+### 4. Version Automation (v1.1.0+)
+
+```bash
+# Edit code, then commit
+git commit -m "feat: add dark mode support"
+
+# Pre-commit hook auto-bumps version
+🔄 Auto-bumping version...
+🚀 Bumping version: 1.0.2 → 1.1.0
+✅ Version auto-bumped
+
+# manifest.toml and Cargo.toml updated automatically
+```
+
+**Conventional Commits Support**:
+- `feat:` → minor bump (1.0.0 → 1.1.0)
+- `fix:` → patch bump (1.0.0 → 1.0.1)
+- `BREAKING CHANGE` → major bump (1.0.0 → 2.0.0)
 
 ---
 
@@ -246,6 +279,15 @@ airis down              # Stop services
 airis run <task>        # Run任意のコマンド from manifest.toml [commands]
 ```
 
+### Version Management (v1.1.0+)
+```bash
+airis bump-version --major    # Bump major version (1.0.0 → 2.0.0)
+airis bump-version --minor    # Bump minor version (1.0.0 → 1.1.0)
+airis bump-version --patch    # Bump patch version (1.0.0 → 1.0.1)
+airis bump-version --auto     # Auto-detect from commit message (Conventional Commits)
+airis hooks install           # Install Git pre-commit hook for auto-versioning
+```
+
 ### Query Manifest
 ```bash
 airis manifest dev-apps  # List autostart apps
@@ -270,6 +312,32 @@ airis manifest rule verify  # Get verify commands
 - [x] Command guards (block host-level pnpm/npm/yarn)
 
 **Status**: ✅ Core workflow functional
+
+---
+
+### ✅ Phase 1.5: Command Unification (v1.0.2) - COMPLETED
+
+- [x] `[commands]` section in manifest.toml
+- [x] `airis run <task>` for custom commands
+- [x] Built-in shorthands (up, down, shell, dev, test, install, build, clean)
+- [x] `[guards]` section (deny, forbid, danger)
+- [x] `[remap]` section for command translation
+- [x] Eliminate just dependency
+
+**Status**: ✅ Just is now optional, all operations via `airis` CLI
+
+---
+
+### ✅ Phase 1.6: Version Automation (v1.1.0) - COMPLETED
+
+- [x] `[versioning]` section in manifest.toml
+- [x] `airis bump-version` command (--major, --minor, --patch, --auto)
+- [x] Conventional Commits support
+- [x] `airis hooks install` for Git pre-commit hook
+- [x] Auto-bump on commit
+- [x] Sync manifest.toml ↔ Cargo.toml
+
+**Status**: ✅ Fully automated version management
 
 ---
 
@@ -443,6 +511,8 @@ airis sync-deps
 | Phase | Status | Version | Key Features |
 |-------|--------|---------|--------------|
 | 1. Foundation | ✅ Done | v0.2.1 | init, generate, guards |
+| 1.5 Command Unification | ✅ Done | v1.0.2 | airis commands, guards, remap |
+| 1.6 Version Automation | ✅ Done | v1.1.0 | bump-version, hooks, auto-bump |
 | 2. Catalog Policies | ✅ Done | v0.3.0 | sync-deps, latest/lts |
 | 3. Smart Generation | 🚧 In Progress | v0.4.0 | Full package.json gen, orchestration |
 | 4. Validation | 📋 Planned | v0.5.0 | validate, doctor, env checks |

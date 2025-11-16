@@ -1,5 +1,6 @@
 pub mod bump_version;
 pub mod discover;
+pub mod docs;
 pub mod generate;
 pub mod guards;
 pub mod hooks;

@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `justfile`, `package.json`, and `pnpm-workspace.yaml` from a single `manifest.toml`. `workspace.yaml` is generated metadata, not the user-editable manifest.
+**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `package.json`, and `pnpm-workspace.yaml` from a single `manifest.toml`. `workspace.yaml` is generated metadata, not the user-editable manifest.
 
-**Core Philosophy**: Prevent host pollution by blocking direct `pnpm`/`npm`/`yarn` execution and forcing Docker-first workflow. Special exception for Rust projects (local builds for GPU support).
+**Core Philosophy**: Prevent host pollution by blocking direct `pnpm`/`npm`/`yarn` execution and forcing Docker-first workflow via `airis` CLI commands. Special exception for Rust projects (local builds for GPU support).
+
+**Current Version**: v1.1.0
+- v1.0.2: Command unification (`[commands]`, `[guards]`, `[remap]`) - justfile now optional
+- v1.1.0: Version automation (`[versioning]`, `airis bump-version`, Git hooks)
 
 ## Build & Development Commands
 
@@ -44,7 +48,7 @@ cargo run -- validate
 
 1. **manifest.toml が存在する場合**
    - 読み込み専用として扱う
-   - package.json, pnpm-workspace.yaml, justfile, workspace.yaml を再生成
+   - package.json, pnpm-workspace.yaml, workspace.yaml を再生成
    - manifest.toml 自体は一切書き換えない
 
 2. **manifest.toml が存在しない場合（初回のみ）**
@@ -93,7 +97,8 @@ pub fn run() -> Result<()> {
 
 3. **Template Engine** (`src/templates/mod.rs`)
    - Uses Handlebars for templating with MANIFEST-driven data
-   - Generates `justfile`, `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml`
+   - Generates `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml`
+   - Optional: `justfile` (if `[just]` section is present)
 
 4. **Generation Pipeline**
    - `init` command → creates or loads manifest.toml, then triggers template sync (src/commands/init.rs)
@@ -101,7 +106,22 @@ pub fn run() -> Result<()> {
 
 ### Key Design Patterns
 
-**Docker-First Guards**: Generated justfile contains guard recipes that block host-level `pnpm`/`npm`/`yarn` with helpful error messages (templates/mod.rs:227-247). This is the project's core enforcement mechanism.
+**Docker-First Guards (v1.0.2+)**: `[guards]` section in manifest.toml defines:
+- `deny`: Block commands for all users (e.g., `["npm", "yarn", "pnpm"]`)
+- `forbid`: LLM-specific blocking (via MCP integration)
+- `danger`: Prevent catastrophic commands (e.g., `["rm -rf /"]`)
+
+**Command Unification (v1.0.2+)**: All operations via `airis` CLI:
+- `[commands]` section defines user commands (install, up, down, dev, test, build, clean)
+- `airis run <task>` executes commands from manifest.toml
+- Built-in shorthands: `airis up`, `airis dev`, `airis shell`, etc.
+- `[remap]` auto-translates banned commands to safe alternatives
+
+**Version Automation (v1.1.0+)**: Automatic version bumping:
+- `[versioning]` section with `strategy` (conventional-commits, auto, manual)
+- `airis bump-version` command (--major, --minor, --patch, --auto)
+- Git pre-commit hook for auto-bump on commit
+- Syncs manifest.toml ↔ Cargo.toml
 
 **Runtime Exceptions**: `apps[].runtime` field allows "local" builds (e.g., Rust with GPU support). Default is "docker".
 
@@ -127,14 +147,17 @@ pub fn run() -> Result<()> {
 - **src/manifest.rs**: manifest.toml schema/helpers
 - **src/commands/init.rs**: Creates or reloads manifest.toml, then re-syncs derived files
 - **src/commands/generate.rs**: Helper that syncs workspace.yaml + templates from an in-memory Manifest
-- **src/commands/manifest_cmd.rs**: Implements `airis manifest ...` plumbing for justfile
+- **src/commands/manifest_cmd.rs**: Implements `airis manifest ...` plumbing
+- **src/commands/run.rs**: Executes commands from `[commands]` section (v1.0.2+)
+- **src/commands/bump_version.rs**: Version bumping with Conventional Commits (v1.1.0+)
+- **src/commands/hooks.rs**: Git hooks installation (v1.1.0+)
 - **src/templates/mod.rs**: Handlebars engine driven by MANIFEST data
 
 ## Important Constraints
 
 ### DO NOT violate these rules when making changes:
 
-1. **Generated files must remain read-only**: Never encourage users to edit `justfile`, `package.json`, or `pnpm-workspace.yaml` directly. All changes go through `manifest.toml`.
+1. **Generated files must remain read-only**: Never encourage users to edit `package.json`, or `pnpm-workspace.yaml` directly. All changes go through `manifest.toml`. (justfile is optional in v1.0.2+)
 
 2. **Docker-first is non-negotiable**: Do not weaken guard recipes or suggest host-level package manager usage (except for Rust projects with `runtime: local`).
 
@@ -143,7 +166,7 @@ pub fn run() -> Result<()> {
 4. **Template consistency**: When modifying templates, ensure:
    - Handlebars syntax is valid
    - Generated files include auto-generation warnings
-   - Just recipes follow naming convention: `<action>-<type>` (e.g., `dev-next`, `build-rust`)
+   - Commands follow naming convention: `<action>` (e.g., `dev`, `build`, `test`)
 
 ## Configuration Schema Notes
 
@@ -153,7 +176,7 @@ pub fn run() -> Result<()> {
 - `strict`: (not yet implemented)
 
 **WorkspaceApp variants** (src/config/mod.rs:52-59):
-- `Simple(String)`: Just app name (type inferred from `apps` section)
+- `Simple(String)`: App name (type inferred from `apps` section)
 - `Detailed`: Inline type specification
 
 **App runtime resolution**: Keep Docker-first semantics. Runtime overrides (e.g., Rust local builds) should be modeled in MANIFEST extensions rather than reintroducing host-level exceptions elsewhere.
@@ -161,10 +184,10 @@ pub fn run() -> Result<()> {
 ## Testing Strategy
 
 When adding features:
-1. Add unit tests in `#[cfg(test)]` modules (see examples in config/mod.rs:242-270, commands/generate.rs:92-118)
+1. Add unit tests in `#[cfg(test)]` modules (see examples in config/mod.rs:242-270, commands/generate.rs:92-118, commands/bump_version.rs:154-182)
 2. Use `tempfile` crate for filesystem tests (already in dev-dependencies)
 3. Test YAML parsing/serialization roundtrips
-4. Verify template rendering produces valid output (justfile syntax, valid JSON)
+4. Verify template rendering produces valid output (valid JSON, TOML)
 
 ## Future Implementation Notes
 
@@ -205,7 +228,7 @@ When adding features:
   - Run discovery → migration → generation flow
   - Generate manifest.toml from detected project structure
   - Display changes and ask for confirmation (unless --force)
-  - User just runs `airis init` and everything is optimized
+  - User runs `airis init` and everything is optimized
 
 **Auto-Migration Workflow**:
 ```
@@ -226,7 +249,7 @@ airis init
      - Detected apps/libs
      - Detected compose file paths in orchestration.dev
      - Extracted catalog from package.json
-   - Generate workspace.yaml, justfile, etc.
+   - Generate workspace.yaml, package.json, etc.
   ↓
 4. Verification Phase
    - Show diff/changes

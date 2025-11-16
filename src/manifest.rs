@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{Mode, WorkspaceApp, WorkspaceConfig, Workspaces};
+use crate::config::Mode;
 
 pub const MANIFEST_FILE: &str = "manifest.toml";
 
@@ -56,6 +56,9 @@ pub struct Manifest {
     /// Version management configuration
     #[serde(default)]
     pub versioning: VersioningSection,
+    /// Documentation management (CLAUDE.md, .cursorrules, etc.)
+    #[serde(default)]
+    pub docs: DocsSection,
 }
 
 impl Manifest {
@@ -149,23 +152,8 @@ impl Manifest {
             commands: IndexMap::new(),
             remap: IndexMap::new(),
             versioning: VersioningSection::default(),
+            docs: DocsSection::default(),
         }
-    }
-
-    pub fn to_workspace_config(&self) -> WorkspaceConfig {
-        let mut config = WorkspaceConfig::default();
-        config.name = self.workspace.name.clone();
-        config.mode = self.mode.clone();
-
-        let apps = self
-            .dev
-            .autostart
-            .iter()
-            .map(|name| WorkspaceApp::Simple(name.clone()))
-            .collect();
-
-        config.workspaces = Workspaces { apps, libs: vec![] };
-        config
     }
 }
 
@@ -310,16 +298,6 @@ impl CatalogEntry {
             CatalogEntry::Policy(p) => p.as_str(),
             CatalogEntry::Version(v) => v.as_str(),
         }
-    }
-
-    /// Check if this entry needs resolution (is a policy or follow)
-    pub fn needs_resolution(&self) -> bool {
-        matches!(self, CatalogEntry::Policy(_) | CatalogEntry::Follow(_))
-    }
-
-    /// Check if this entry follows another package
-    pub fn is_follow(&self) -> bool {
-        matches!(self, CatalogEntry::Follow(_))
     }
 
     /// Get the follow target if this is a Follow entry
@@ -536,6 +514,39 @@ pub enum VersioningStrategy {
     Auto,
     /// Use Conventional Commits to determine bump type
     ConventionalCommits,
+}
+
+/// Documentation management configuration
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DocsSection {
+    /// List of documentation files to manage (e.g., ["CLAUDE.md", ".cursorrules"])
+    #[serde(default)]
+    pub targets: Vec<String>,
+    /// Overwrite mode: "warn" (default) or "backup"
+    #[serde(default = "default_docs_mode")]
+    pub mode: DocsMode,
+}
+
+impl Default for DocsSection {
+    fn default() -> Self {
+        DocsSection {
+            targets: vec![],
+            mode: default_docs_mode(),
+        }
+    }
+}
+
+fn default_docs_mode() -> DocsMode {
+    DocsMode::Warn
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum DocsMode {
+    /// Warn and refuse to overwrite existing files
+    Warn,
+    /// Create .bak backup before overwriting
+    Backup,
 }
 
 impl VersioningSection {

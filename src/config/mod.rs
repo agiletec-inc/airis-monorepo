@@ -201,35 +201,6 @@ impl WorkspaceConfig {
         Ok(config)
     }
 
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let yaml =
-            serde_yaml::to_string(self).with_context(|| "Failed to serialize workspace config")?;
-
-        fs::write(path.as_ref(), yaml)
-            .with_context(|| format!("Failed to write {:?}", path.as_ref()))?;
-
-        Ok(())
-    }
-
-    /// Get workspace service name
-    #[allow(dead_code)]
-    pub fn workspace_service(&self) -> String {
-        self.docker
-            .workspace
-            .service
-            .clone()
-            .unwrap_or_else(|| "workspace".to_string())
-    }
-
-    /// Get app name from WorkspaceApp
-    #[allow(dead_code)]
-    pub fn get_app_name(app: &WorkspaceApp) -> String {
-        match app {
-            WorkspaceApp::Simple(name) => name.clone(),
-            WorkspaceApp::Detailed { name, .. } => name.clone(),
-        }
-    }
-
     /// Get app type from WorkspaceApp
     #[allow(dead_code)]
     pub fn get_app_type(&self, app: &WorkspaceApp) -> Option<String> {
