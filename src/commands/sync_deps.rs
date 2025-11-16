@@ -176,41 +176,53 @@ fn get_npm_lts(package: &str) -> Result<String> {
 fn update_pnpm_workspace(catalog: &IndexMap<String, String>) -> Result<()> {
     let workspace_path = Path::new("pnpm-workspace.yaml");
 
-    if !workspace_path.exists() {
-        anyhow::bail!("pnpm-workspace.yaml not found");
+    // Load manifest to get workspace packages
+    let manifest = Manifest::load(Path::new("manifest.toml"))
+        .context("Failed to load manifest.toml")?;
+
+    let yaml = if workspace_path.exists() {
+        // Read existing content
+        let content = fs::read_to_string(workspace_path)
+            .context("Failed to read pnpm-workspace.yaml")?;
+
+        // Parse YAML
+        serde_yaml::from_str(&content)
+            .context("Failed to parse pnpm-workspace.yaml")?
+    } else {
+        // Create new YAML structure from manifest
+        let mut root_map = serde_yaml::Mapping::new();
+
+        // Add packages from manifest
+        let packages: Vec<serde_yaml::Value> = manifest
+            .packages
+            .workspaces
+            .iter()
+            .map(|ws| serde_yaml::Value::String(ws.clone()))
+            .collect();
+
+        root_map.insert(
+            serde_yaml::Value::String("packages".to_string()),
+            serde_yaml::Value::Sequence(packages),
+        );
+
+        serde_yaml::Value::Mapping(root_map)
+    };
+
+    let mut yaml = yaml;
+
+    // COMPLETELY REPLACE catalog section (don't merge - this removes deleted entries)
+    let mut catalog_map = serde_yaml::Mapping::new();
+    for (package, version) in catalog {
+        let key = serde_yaml::Value::String(package.clone());
+        let value = serde_yaml::Value::String(version.clone());
+        catalog_map.insert(key, value);
     }
 
-    // Read existing content
-    let content = fs::read_to_string(workspace_path)
-        .context("Failed to read pnpm-workspace.yaml")?;
-
-    // Parse YAML
-    let mut yaml: serde_yaml::Value = serde_yaml::from_str(&content)
-        .context("Failed to parse pnpm-workspace.yaml")?;
-
-    // Update catalog section
-    if let Some(catalog_section) = yaml.get_mut("catalog") {
-        if let Some(catalog_map) = catalog_section.as_mapping_mut() {
-            for (package, version) in catalog {
-                let key = serde_yaml::Value::String(package.clone());
-                let value = serde_yaml::Value::String(version.clone());
-                catalog_map.insert(key, value);
-            }
-        }
-    } else {
-        // Create catalog section if it doesn't exist
-        let mut catalog_map = serde_yaml::Mapping::new();
-        for (package, version) in catalog {
-            let key = serde_yaml::Value::String(package.clone());
-            let value = serde_yaml::Value::String(version.clone());
-            catalog_map.insert(key, value);
-        }
-        if let Some(root_map) = yaml.as_mapping_mut() {
-            root_map.insert(
-                serde_yaml::Value::String("catalog".to_string()),
-                serde_yaml::Value::Mapping(catalog_map),
-            );
-        }
+    if let Some(root_map) = yaml.as_mapping_mut() {
+        root_map.insert(
+            serde_yaml::Value::String("catalog".to_string()),
+            serde_yaml::Value::Mapping(catalog_map),
+        );
     }
 
     // Write back to file
