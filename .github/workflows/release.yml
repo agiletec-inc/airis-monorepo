@@ -86,19 +86,12 @@ jobs:
           fi
           echo "📦 Architecture: $ARCH"
 
-      - name: Update Cargo.toml version
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-          echo "📝 Updated Cargo.toml to version $VERSION"
-
       - name: Build release binary
         if: steps.check_tag.outputs.exists == 'false'
         run: |
           cargo build --release
           strip target/release/airis
-          tar -czf airis-${{ steps.version.outputs.version }}-${{ steps.arch.outputs.arch }}.tar.gz -C target/release airis
+          tar -czf airis-${{steps.version.outputs.version}}-${{steps.arch.outputs.arch}}.tar.gz -C target/release airis
 
       - name: Calculate SHA256
         if: steps.check_tag.outputs.exists == 'false'
@@ -151,42 +144,48 @@ jobs:
           # Create Formula directory if it doesn't exist
           mkdir -p Formula
 
-          # Update formula
-          cat > Formula/airis-workspace.rb << 'FORMULAEOF'
-          class AirisWorkspace < Formula
-            desc "Docker-first monorepo workspace manager for rapid prototyping"
-            homepage "https://github.com/agiletec-inc/airis-workspace"
-            license "MIT"
-            url "URL_PLACEHOLDER"
-            sha256 "SHA_PLACEHOLDER"
-            version "VER_PLACEHOLDER"
+          # Update formula with OrbStack/Docker dependencies
+          cat > Formula/airis-workspace.rb <<'EOF'
+class AirisWorkspace < Formula
+  desc "Docker-first monorepo workspace manager for rapid prototyping"
+  homepage "https://github.com/agiletec-inc/airis-workspace"
+  license "MIT"
+EOF
 
-            def install
-              bin.install "airis"
-            end
+          cat >> Formula/airis-workspace.rb <<EOF
+  url "https://github.com/agiletec-inc/airis-workspace/releases/download/v${VERSION}/airis-${VERSION}-${ARCH}.tar.gz"
+  sha256 "${SHA256}"
+  version "${VERSION}"
+EOF
 
-            def caveats
-              <<~EOS
-                airis requires a Docker backend to run.
+          cat >> Formula/airis-workspace.rb <<'EOF'
 
-                Install one of the following:
-                  - Apple Silicon: brew install --cask orbstack
-                  - Intel Mac: brew install --cask docker
+  # Docker backend is required - this is a Docker-first tool
+  on_arm do
+    depends_on cask: "orbstack"
+  end
 
-                Then start the Docker backend before using airis.
-              EOS
-            end
+  on_intel do
+    depends_on cask: "docker"
+  end
 
-            test do
-              system "#{bin}/airis", "--version"
-            end
-          end
-          FORMULAEOF
+  def install
+    bin.install "airis"
+  end
 
-          # Replace placeholders with actual values
-          sed -i '' "s|URL_PLACEHOLDER|https://github.com/agiletec-inc/airis-workspace/releases/download/v${VERSION}/airis-${VERSION}-${ARCH}.tar.gz|g" Formula/airis-workspace.rb
-          sed -i '' "s|SHA_PLACEHOLDER|${SHA256}|g" Formula/airis-workspace.rb
-          sed -i '' "s|VER_PLACEHOLDER|${VERSION}|g" Formula/airis-workspace.rb
+  def caveats
+    <<~EOS
+      Make sure your Docker backend is running before using airis:
+        - Apple Silicon: OrbStack (installed as dependency)
+        - Intel Mac: Docker Desktop (installed as dependency)
+    EOS
+  end
+
+  test do
+    system "\#{bin}/airis", "--version"
+  end
+end
+EOF
 
           # Commit and push
           git config user.name "GitHub Actions"

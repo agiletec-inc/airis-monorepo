@@ -22,8 +22,6 @@ services:
       dockerfile: apps/corporate-site/Dockerfile
     env_file:
       - ./apps/corporate-site/.env
-    ports:
-      - "${CORPORATE_SITE_HOST_PORT:-}:3000"
     volumes:
       - ./apps/corporate-site:/app
       - ./libs:/app/libs
@@ -32,7 +30,6 @@ services:
       - "traefik.enable=${TRAEFIK_ENABLED:-true}"
       - "traefik.http.routers.corporate-site.rule=Host(`corporate-site.localhost`)"
       - "traefik.http.routers.corporate-site.entrypoints=web"
-      - "traefik.http.services.corporate-site.loadbalancer.server.port=3000"
     networks:
       - traefik
 
@@ -43,8 +40,6 @@ services:
       dockerfile: apps/airis-dashboard/Dockerfile
     env_file:
       - ./apps/airis-dashboard/.env
-    ports:
-      - "${AIRIS_DASHBOARD_HOST_PORT:-}:3000"
     volumes:
       - ./apps/airis-dashboard:/app
       - ./libs:/app/libs
@@ -53,7 +48,6 @@ services:
       - "traefik.enable=${TRAEFIK_ENABLED:-true}"
       - "traefik.http.routers.airis-dashboard.rule=Host(`airis-dashboard.localhost`)"
       - "traefik.http.routers.airis-dashboard.entrypoints=web"
-      - "traefik.http.services.airis-dashboard.loadbalancer.server.port=3000"
     networks:
       - traefik
 
@@ -64,8 +58,6 @@ services:
       dockerfile: apps/airis-auto-call/Dockerfile
     env_file:
       - ./apps/airis-auto-call/.env
-    ports:
-      - "${AIRIS_AUTO_CALL_HOST_PORT:-}:3000"
     volumes:
       - ./apps/airis-auto-call:/app
       - ./libs:/app/libs
@@ -74,7 +66,6 @@ services:
       - "traefik.enable=${TRAEFIK_ENABLED:-true}"
       - "traefik.http.routers.airis-auto-call.rule=Host(`airis-auto-call.localhost`)"
       - "traefik.http.routers.airis-auto-call.entrypoints=web"
-      - "traefik.http.services.airis-auto-call.loadbalancer.server.port=3000"
     networks:
       - traefik
 
@@ -85,8 +76,6 @@ services:
       dockerfile: apps/focustoday-web/Dockerfile
     env_file:
       - ./apps/focustoday-web/.env
-    ports:
-      - "${FOCUSTODAY_WEB_HOST_PORT:-}:3000"
     volumes:
       - ./apps/focustoday-web:/app
       - ./libs:/app/libs
@@ -95,7 +84,6 @@ services:
       - "traefik.enable=${TRAEFIK_ENABLED:-true}"
       - "traefik.http.routers.focustoday-web.rule=Host(`focustoday-web.localhost`)"
       - "traefik.http.routers.focustoday-web.entrypoints=web"
-      - "traefik.http.services.focustoday-web.loadbalancer.server.port=3000"
     networks:
       - traefik
 

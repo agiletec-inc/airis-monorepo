@@ -28,15 +28,15 @@ AIris Workspace is the **development environment enforcer** of the **AIRIS Suite
 ### Quick Install: Complete AIRIS Suite
 
 ```bash
-# Option 1: Install airis-agent plugin (recommended for Claude Code users)
+# Install all AIRIS tools via Homebrew (recommended)
+brew tap agiletec-inc/tap
+brew install airis-workspace airis-mcp-gateway
+
+# For Claude Code users: Add airis-agent plugin
 /plugin marketplace add agiletec-inc/airis-agent
 /plugin install airis-agent
 
-# Option 2: Clone all AIRIS repositories at once
-uv run airis-agent install-suite --profile core
-
-# Option 3: Just use airis-workspace standalone
-cargo install airis
+# Then start using airis-workspace
 cd your-monorepo && airis init
 ```
 
@@ -147,18 +147,30 @@ $ airis affected
 
 ## 🚀 Quick Start
 
-### Install AIris Workspace
+### Install (Recommended: Homebrew)
+
 ```bash
-# From source (development)
+# Install airis-workspace
+brew install agiletec-inc/tap/airis-workspace
+
+# Optional: Install AIRIS MCP Gateway for Claude Code integration
+brew install agiletec-inc/tap/airis-mcp-gateway
+```
+
+**Note**: airis-workspace requires Docker. Install [OrbStack](https://orbstack.dev) (Apple Silicon) or [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Intel).
+
+### Install (Alternative: Cargo)
+
+For developers who want to build from source:
+
+```bash
 git clone https://github.com/agiletec-inc/airis-workspace.git
 cd airis-workspace
 cargo install --path .
-
-# Or install from crates.io (when published)
-cargo install airis
 ```
 
 ### Create New Workspace
+
 ```bash
 mkdir my-monorepo && cd my-monorepo
 airis init          # Creates manifest.toml + resolves versions + generates all files
@@ -166,6 +178,7 @@ airis up            # Start Docker services
 ```
 
 ### Migrate Existing Project
+
 ```bash
 cd your-existing-monorepo
 airis init          # Auto-detects apps/libs/compose files, generates manifest.toml
