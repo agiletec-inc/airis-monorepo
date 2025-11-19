@@ -83,48 +83,133 @@ cd your-monorepo && airis init
 
 ---
 
-## 🎯 Problem Solved
+## ✨ Killer Features
 
-### ❌ Before
-- LLMs break Docker-first rules by running `pnpm install` on host
-- Dependency version conflicts across apps
-- Manual version updates for every package
-- `.env.local` / `.env.development` proliferation
-- Manual Makefile maintenance
-- TypeScript build issues on different machines
-- "Works on my machine" syndrome
+### 1. Auto Version Resolution (No Other Tool Has This)
 
-### ✅ After
-- **Docker-first enforced**: `pnpm install` → Blocked with helpful error message
-- **Single source of truth**: `manifest.toml` → auto-generate everything
-- **Auto-version resolution**: `react = "latest"` → automatically resolves to `^19.2.0`
-- **Command unification**: All operations via `airis` CLI (no just dependency)
-- **LLM-friendly**: Clear error messages, command guards, MCP server integration
-- **Cross-platform**: macOS/Linux/Windows via Docker
-- **Rust special case**: Local builds for Apple Silicon GPU support
+```toml
+# manifest.toml
+[packages.catalog]
+react = "latest"      # → Automatically resolves to ^19.2.0
+next = "lts"          # → Resolves to LTS version
+typescript = "^5.0"   # → Used as-is
+```
+
+```bash
+$ airis init
+📦 Resolving catalog versions from npm registry...
+  ✓ react latest → ^19.2.0
+  ✓ next lts → ^15.1.0
+  ✓ typescript ^5.0 → ^5.0
+```
+
+**No more manually updating 20 package.json files when React releases a new version.** Write `"latest"` once, and every app in your monorepo gets the same resolved version.
+
+### 2. Auto Versioning with Conventional Commits
+
+```bash
+$ git commit -m "feat: add dark mode"
+# Pre-commit hook auto-bumps: 1.0.0 → 1.1.0
+
+$ git commit -m "fix: button alignment"
+# Auto-bumps: 1.1.0 → 1.1.1
+
+$ git commit -m "feat!: breaking API change"
+# Auto-bumps: 1.1.1 → 2.0.0
+```
+
+Semantic versioning happens automatically. No more forgetting to bump versions or arguing about what version to use.
+
+### 3. LLM-Proof Monorepo
+
+```bash
+$ pnpm install
+❌ ERROR: 'pnpm' must run inside Docker workspace
+
+   Use: airis install
+
+   Or configure [remap] in manifest.toml to auto-translate commands.
+```
+
+When Claude Code or Cursor tries to run `pnpm install` on your host, it gets blocked with a helpful error. **Your host environment stays clean.**
+
+### 4. Self-Healing Config Files
+
+```bash
+# LLM broke your package.json? No problem.
+$ airis init
+✅ Regenerated package.json from manifest.toml
+```
+
+Since `manifest.toml` is the single source of truth, all derived files can be regenerated instantly. LLMs can't permanently break your config.
+
+### 5. Homebrew Distribution with Auto-Release
+
+```bash
+$ git push origin main
+# GitHub Actions automatically:
+# 1. Determines version from commits (feat: → minor, fix: → patch)
+# 2. Builds release binary
+# 3. Creates GitHub release
+# 4. Updates Homebrew formula
+```
+
+Your users just run `brew upgrade airis-workspace` and get the latest version. Zero manual release work.
 
 ---
 
-## 🧠 Design Philosophy: Why Not NX/Turborepo?
+## 🧠 Design Philosophy: Why Not NX/Turborepo/Bazel?
 
-**airis-workspace is not competing with NX/Turborepo. The design philosophy is fundamentally different.**
+**airis-workspace is not competing with these tools. It's built for a different era.**
 
 ### Different Eras, Different Tools
 
 | Tool | Era | Philosophy |
 |------|-----|------------|
-| **NX/Turborepo** | Human-managed monorepo | Humans manually maintain complex config files |
+| **NX/Turborepo/Bazel** | Human-managed monorepo | Humans manually maintain complex config files |
 | **airis** | LLM-managed monorepo | AI auto-generates and self-repairs everything |
 
-### NX/Turbo's Problem: Config File Sprawl
+### NX's Problems
 
-NX/Turbo requires multiple config files:
-- `workspace.json`
-- `nx.json`
-- `project.json` × N projects
-- Various `.rc` files
+**1. Plugin Hell**
 
-**LLMs will break these.** There's no single source of truth.
+NX relies heavily on plugins (`@nx/react`, `@nx/next`, etc.). If the official plugin isn't updated for your framework version, you're stuck. I've wasted days waiting for plugin updates.
+
+**2. Config File Sprawl**
+
+```
+workspace.json
+nx.json
+project.json × N projects
+.nxignore
+various .rc files
+```
+
+LLMs will break these. There's no single source of truth. When Claude edits `project.json` incorrectly, you have to manually fix it.
+
+**3. Dependency Graph is Less Useful in LLM Era**
+
+NX's dependency graph visualization was great when humans needed to understand impact. But with LLMs doing the analysis, we don't need fancy UIs—we need auto-regeneration.
+
+### Turborepo's Problems
+
+**1. No Version Catalog**
+
+You still manually update versions in every `package.json`. No `"latest"` → `"^19.2.0"` resolution.
+
+**2. No Docker-First Enforcement**
+
+Nothing stops LLMs from running `pnpm install` on your host.
+
+### Bazel's Problems
+
+**1. Massive Learning Curve**
+
+BUILD files, Starlark, etc. Overkill for most monorepos.
+
+**2. Not LLM-Friendly**
+
+LLMs struggle with Bazel's unique syntax and concepts.
 
 ### airis's Solution: Self-Healing Monorepo
 
