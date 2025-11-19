@@ -35,7 +35,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize MANIFEST.toml + workspace metadata
-    Init,
+    Init {
+        /// Force snapshot capture (default: auto on first run)
+        #[arg(long)]
+        snapshot: bool,
+        /// Skip snapshot capture (for CI or repeated runs)
+        #[arg(long)]
+        no_snapshot: bool,
+    },
 
     /// Query MANIFEST.toml data (used by justfile)
     Manifest {
@@ -201,7 +208,7 @@ fn main() -> Result<()> {
     });
 
     match command {
-        Commands::Init => commands::init::run()?,
+        Commands::Init { snapshot, no_snapshot } => commands::init::run(snapshot, no_snapshot)?,
         Commands::Manifest { action } => {
             use commands::manifest_cmd::{self, ManifestAction};
 

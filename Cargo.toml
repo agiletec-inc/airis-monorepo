@@ -31,6 +31,8 @@ serde_json = "1.0"
 handlebars = "6.2"
 indexmap = { version = "2.7", features = ["serde"] }
 regex = "1.11"
+chrono = "0.4"
+sha2 = "0.10"
 
 [dev-dependencies]
 assert_cmd = "2.0"

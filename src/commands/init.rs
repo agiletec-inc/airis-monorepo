@@ -5,7 +5,7 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::commands::{discover, generate};
+use crate::commands::{discover, generate, snapshot};
 use crate::manifest::{Manifest, MANIFEST_FILE};
 
 /// Get git repository root directory
@@ -37,9 +37,34 @@ fn get_project_name_from_git() -> Option<String> {
 /// IMPORTANT: This command NEVER overwrites existing manifest.toml.
 /// - If manifest.toml exists: read-only mode, regenerate other files
 /// - If manifest.toml does not exist: create initial template
-pub fn run() -> Result<()> {
+///
+/// Snapshot behavior:
+/// - Default: auto-snapshot on first run (when .airis/snapshots.toml doesn't exist)
+/// - --snapshot: force snapshot capture
+/// - --no-snapshot: skip snapshot (for CI or repeated runs)
+pub fn run(force_snapshot: bool, no_snapshot: bool) -> Result<()> {
     let manifest_path = Path::new(MANIFEST_FILE);
     let current_dir = env::current_dir()?;
+
+    // Determine if snapshot should be captured
+    let snapshots_exist = Path::new(".airis/snapshots.toml").exists();
+    let should_snapshot = if no_snapshot {
+        false
+    } else if force_snapshot {
+        true
+    } else {
+        // Auto-snapshot on first run only
+        !snapshots_exist
+    };
+
+    // Capture snapshots if needed
+    if should_snapshot {
+        if !snapshots_exist {
+            println!("{}", "📸 First-time initialization detected — snapshot enabled automatically".bright_blue());
+        }
+        snapshot::capture_snapshots()?;
+        println!();
+    }
 
     let manifest = if manifest_path.exists() {
         // ✅ READ-ONLY MODE: Never modify existing manifest.toml
