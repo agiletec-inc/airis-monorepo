@@ -1,6 +1,28 @@
 version = 1
 mode = "docker-first"
 
+[meta]
+id = "airis-workspace"
+binary_name = "airis"
+version = "1.5.0"
+description = "Docker-first monorepo workspace manager for rapid prototyping"
+authors = ["Agile Technology <hello@agiletec.jp>"]
+license = "MIT"
+homepage = "https://github.com/agiletec-inc/airis-workspace"
+repository = "https://github.com/agiletec-inc/airis-workspace"
+keywords = [
+    "monorepo",
+    "docker",
+    "workspace",
+    "cli",
+    "prototyping",
+]
+categories = [
+    "command-line-utilities",
+    "development-tools",
+]
+rust_edition = "2024"
+
 [workspace]
 name = "airis-workspace"
 package_manager = "pnpm@10.22.0"
@@ -225,8 +247,17 @@ clean = "echo '🧹 Cleaning build artifacts...'; find . -type d -name 'node_mod
 
 [versioning]
 strategy = "manual"
-source = "0.1.1"
+source = "1.5.0"
 
 [docs]
 targets = []
 mode = "warn"
+
+[ci]
+enabled = true
+auto_version = true
+
+[ci.auto_merge]
+enabled = true
+from = "next"
+to = "main"

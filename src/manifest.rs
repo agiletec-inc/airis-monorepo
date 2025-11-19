@@ -19,6 +19,9 @@ pub struct Manifest {
     pub version: u32,
     #[serde(default)]
     pub mode: Mode,
+    /// Project metadata (SoT for Cargo.toml, Homebrew, etc.)
+    #[serde(default)]
+    pub meta: MetaSection,
     #[serde(default)]
     pub workspace: WorkspaceSection,
     #[serde(default)]
@@ -131,6 +134,7 @@ impl Manifest {
         Manifest {
             version: 1,
             mode: Mode::DockerFirst,
+            meta: MetaSection::default(),
             workspace: WorkspaceSection {
                 name: name.to_string(),
                 package_manager: "pnpm@10.22.0".to_string(),
@@ -172,6 +176,44 @@ impl Manifest {
             ci: CiSection::default(),
         }
     }
+}
+
+/// Project metadata - Source of Truth for Cargo.toml, Homebrew formula, etc.
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct MetaSection {
+    /// Project ID (e.g., "airis-workspace")
+    #[serde(default)]
+    pub id: String,
+    /// CLI binary name (e.g., "airis")
+    #[serde(default)]
+    pub binary_name: String,
+    /// Semantic version (e.g., "1.4.0")
+    #[serde(default)]
+    pub version: String,
+    /// Short description
+    #[serde(default)]
+    pub description: String,
+    /// Authors list
+    #[serde(default)]
+    pub authors: Vec<String>,
+    /// License (e.g., "MIT")
+    #[serde(default)]
+    pub license: String,
+    /// Project homepage URL
+    #[serde(default)]
+    pub homepage: String,
+    /// Repository URL
+    #[serde(default)]
+    pub repository: String,
+    /// Keywords for discovery
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    /// Categories for classification
+    #[serde(default)]
+    pub categories: Vec<String>,
+    /// Rust edition (e.g., "2024")
+    #[serde(default)]
+    pub rust_edition: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

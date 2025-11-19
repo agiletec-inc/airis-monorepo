@@ -20,17 +20,29 @@ jobs:
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Read version from Cargo.toml
+      - name: Read version from manifest.toml
         id: version
         run: |
-          # Single Source of Truth: Cargo.toml
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          # Single Source of Truth: manifest.toml [meta].version
+          VERSION=$(grep '^version = ' manifest.toml | grep -v '^version = 1$' | head -1 | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version from Cargo.toml: $VERSION"
+          echo "📦 Version from manifest.toml [meta]: $VERSION"
 
-      - name: Validate version was bumped
+      - name: Validate Cargo.toml is in sync
         run: |
           VERSION=${{ steps.version.outputs.version }}
+
+          # Check Cargo.toml matches manifest.toml
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+          echo "📊 manifest.toml: $VERSION"
+          echo "📊 Cargo.toml: $CARGO_VERSION"
+
+          if [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "❌ ERROR: manifest.toml ($VERSION) and Cargo.toml ($CARGO_VERSION) are out of sync"
+            echo "   → Run 'airis bump-version --auto' locally before pushing"
+            exit 1
+          fi
 
           # Get latest tag
           LATEST_TAG=$(git tag -l 'v*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
@@ -40,16 +52,15 @@ jobs:
           LATEST_VERSION=${LATEST_TAG#v}
 
           echo "📊 Latest tag: $LATEST_VERSION"
-          echo "📊 Cargo.toml: $VERSION"
 
           # Check if version is newer than latest tag
           if [ "$VERSION" = "$LATEST_VERSION" ]; then
-            echo "❌ ERROR: Cargo.toml version ($VERSION) is same as latest tag ($LATEST_TAG)"
+            echo "❌ ERROR: Version ($VERSION) is same as latest tag ($LATEST_TAG)"
             echo "   → Run 'airis bump-version --auto' locally before pushing"
             exit 1
           fi
 
-          echo "✅ Version $VERSION is newer than $LATEST_VERSION"
+          echo "✅ Version $VERSION is newer than $LATEST_VERSION and in sync"
 
       - name: Check if already released
         id: check_tag

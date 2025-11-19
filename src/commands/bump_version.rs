@@ -15,7 +15,7 @@ pub enum BumpMode {
     Patch,    // x.y.z
 }
 
-/// Bump version in manifest.toml and sync to Cargo.toml
+/// Bump version in manifest.toml [meta].version and sync to Cargo.toml
 pub fn run(mode: BumpMode) -> Result<()> {
     let manifest_path = Path::new(MANIFEST_FILE);
 
@@ -30,7 +30,16 @@ pub fn run(mode: BumpMode) -> Result<()> {
     let mut manifest = Manifest::load(manifest_path)
         .with_context(|| format!("Failed to load {}", MANIFEST_FILE))?;
 
-    let current_version = manifest.versioning.source.clone();
+    // Use [meta].version as SoT, fallback to versioning.source for backward compatibility
+    let current_version = if !manifest.meta.version.is_empty() {
+        manifest.meta.version.clone()
+    } else {
+        manifest.versioning.source.clone()
+    };
+
+    if current_version.is_empty() {
+        bail!("❌ No version found in manifest.toml. Add [meta].version or [versioning].source.");
+    }
 
     // Determine bump type
     let new_version = match mode {
@@ -42,18 +51,18 @@ pub fn run(mode: BumpMode) -> Result<()> {
                 }
                 VersioningStrategy::Auto => {
                     // Default to minor bump
-                    manifest.versioning.bump_minor()?
+                    bump_version_string(&current_version, "minor")?
                 }
                 VersioningStrategy::ConventionalCommits => {
                     // Get last commit message
                     let commit_msg = get_last_commit_message()?;
-                    detect_bump_from_conventional_commit(&commit_msg, &mut manifest)?
+                    detect_bump_type_from_conventional_commit(&commit_msg, &current_version)?
                 }
             }
         }
-        BumpMode::Major => manifest.versioning.bump_major()?,
-        BumpMode::Minor => manifest.versioning.bump_minor()?,
-        BumpMode::Patch => manifest.versioning.bump_patch()?,
+        BumpMode::Major => bump_version_string(&current_version, "major")?,
+        BumpMode::Minor => bump_version_string(&current_version, "minor")?,
+        BumpMode::Patch => bump_version_string(&current_version, "patch")?,
     };
 
     println!(
@@ -62,17 +71,43 @@ pub fn run(mode: BumpMode) -> Result<()> {
         new_version.green().bold()
     );
 
-    // Save updated manifest.toml
+    // Update manifest.toml [meta].version (SoT)
+    manifest.meta.version = new_version.clone();
+    // Also update versioning.source for backward compatibility
+    manifest.versioning.source = new_version.clone();
     manifest.save(manifest_path)?;
 
-    // Update Cargo.toml
+    // Sync to Cargo.toml
     update_cargo_toml(&new_version)?;
 
     println!("✅ Version bumped successfully!");
-    println!("   manifest.toml: {}", new_version.green());
+    println!("   manifest.toml [meta].version: {}", new_version.green());
     println!("   Cargo.toml: {}", new_version.green());
 
     Ok(())
+}
+
+/// Bump version string by type
+fn bump_version_string(current: &str, bump_type: &str) -> Result<String> {
+    let parts: Vec<u32> = current
+        .split('.')
+        .map(|s| s.parse().unwrap_or(0))
+        .collect();
+
+    if parts.len() < 3 {
+        bail!("Invalid version format: {}", current);
+    }
+
+    let (major, minor, patch) = (parts[0], parts[1], parts[2]);
+
+    let new_version = match bump_type {
+        "major" => format!("{}.0.0", major + 1),
+        "minor" => format!("{}.{}.0", major, minor + 1),
+        "patch" => format!("{}.{}.{}", major, minor, patch + 1),
+        _ => bail!("Unknown bump type: {}", bump_type),
+    };
+
+    Ok(new_version)
 }
 
 /// Get the last commit message
@@ -95,23 +130,23 @@ fn get_last_commit_message() -> Result<String> {
 }
 
 /// Detect version bump type from Conventional Commits message
-fn detect_bump_from_conventional_commit(
+fn detect_bump_type_from_conventional_commit(
     commit_msg: &str,
-    manifest: &mut Manifest,
+    current_version: &str,
 ) -> Result<String> {
     // BREAKING CHANGE or feat!: → major
     if commit_msg.contains("BREAKING CHANGE") || commit_msg.contains("!:") {
-        return manifest.versioning.bump_major();
+        return bump_version_string(current_version, "major");
     }
 
     // feat: → minor
     if commit_msg.starts_with("feat:") || commit_msg.starts_with("feat(") {
-        return manifest.versioning.bump_minor();
+        return bump_version_string(current_version, "minor");
     }
 
     // fix: → patch
     if commit_msg.starts_with("fix:") || commit_msg.starts_with("fix(") {
-        return manifest.versioning.bump_patch();
+        return bump_version_string(current_version, "patch");
     }
 
     // chore:, docs:, style:, refactor:, test: → patch
@@ -121,11 +156,11 @@ fn detect_bump_from_conventional_commit(
         || commit_msg.starts_with("refactor:")
         || commit_msg.starts_with("test:")
     {
-        return manifest.versioning.bump_patch();
+        return bump_version_string(current_version, "patch");
     }
 
     // Default: patch
-    manifest.versioning.bump_patch()
+    bump_version_string(current_version, "patch")
 }
 
 /// Update version in Cargo.toml
@@ -155,28 +190,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_conventional_commits_detection() {
-        let mut manifest = Manifest::default_with_project("test");
-        manifest.versioning.source = "1.0.0".to_string();
+    fn test_bump_version_string() {
+        // patch bump
+        let result = bump_version_string("1.0.0", "patch");
+        assert_eq!(result.unwrap(), "1.0.1");
 
+        // minor bump
+        let result = bump_version_string("1.0.0", "minor");
+        assert_eq!(result.unwrap(), "1.1.0");
+
+        // major bump
+        let result = bump_version_string("1.0.0", "major");
+        assert_eq!(result.unwrap(), "2.0.0");
+    }
+
+    #[test]
+    fn test_conventional_commits_detection() {
         // feat: → minor
-        let result = detect_bump_from_conventional_commit("feat: add new feature", &mut manifest);
-        assert!(result.is_ok());
-        assert_eq!(manifest.versioning.source, "1.1.0");
+        let result = detect_bump_type_from_conventional_commit("feat: add new feature", "1.0.0");
+        assert_eq!(result.unwrap(), "1.1.0");
 
         // fix: → patch
-        manifest.versioning.source = "1.1.0".to_string();
-        let result = detect_bump_from_conventional_commit("fix: bug fix", &mut manifest);
-        assert!(result.is_ok());
-        assert_eq!(manifest.versioning.source, "1.1.1");
+        let result = detect_bump_type_from_conventional_commit("fix: bug fix", "1.1.0");
+        assert_eq!(result.unwrap(), "1.1.1");
 
         // BREAKING CHANGE → major
-        manifest.versioning.source = "1.1.1".to_string();
-        let result = detect_bump_from_conventional_commit(
+        let result = detect_bump_type_from_conventional_commit(
             "feat!: BREAKING CHANGE: api change",
-            &mut manifest,
+            "1.1.1",
         );
-        assert!(result.is_ok());
-        assert_eq!(manifest.versioning.source, "2.0.0");
+        assert_eq!(result.unwrap(), "2.0.0");
     }
 }
