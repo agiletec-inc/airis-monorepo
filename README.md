@@ -10,6 +10,8 @@
 >
 > Zero-Config Monorepo Engine for 2025+
 
+![airis init generates your entire monorepo config](assets/airis-init-demo.gif)
+
 ---
 
 ## 💡 Why I Built This
@@ -121,6 +123,16 @@ $ airis init
 
 ### 2. Flexible Runtime: Docker-First with Local Escape Hatches
 
+<!-- GIF Demo: Runtime switching
+     1. Show manifest.toml with runtime = "docker"
+     2. Run command → shows "Running in Docker"
+     3. Change to runtime = "local"
+     4. Run same command → shows "Using local Apple Silicon GPU"
+
+     Place GIF at: assets/airis-runtime-demo.gif
+-->
+<!-- ![Switch between Docker and local GPU with one config change](assets/airis-runtime-demo.gif) -->
+
 ```toml
 # manifest.toml
 [apps.api]
@@ -174,10 +186,21 @@ When Claude Code or Cursor tries to run `pnpm install` on your host, it gets blo
 
 ### 5. Self-Healing Config Files
 
+![airis doctor auto-heals broken configs](assets/airis-doctor-demo.gif)
+
 ```bash
 # LLM broke your package.json? No problem.
-$ airis init
-✅ Regenerated package.json from manifest.toml
+$ airis doctor
+🔍 Diagnosing workspace health...
+
+⚠️  Detected inconsistencies:
+   ❌ package.json - Content mismatch (15 lines differ)
+
+💡 Run `airis doctor --fix` to auto-repair
+
+$ airis doctor --fix
+🔧 Fixing...
+✨ Workspace healed successfully!
 ```
 
 Since `manifest.toml` is the single source of truth, all derived files can be regenerated instantly. LLMs can't permanently break your config.
@@ -499,6 +522,8 @@ git commit -m "feat: add dark mode support"
 ### Workspace Management
 ```bash
 airis init              # Create or re-sync derived files from manifest.toml
+airis doctor            # Diagnose workspace health, detect config drift
+airis doctor --fix      # Auto-repair detected issues
 airis sync-deps         # Resolve "latest"/"lts" policies to actual versions
 airis validate          # Check configuration (planned)
 airis guards install    # Install command guards to block host package managers
