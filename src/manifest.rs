@@ -21,7 +21,7 @@ pub struct Manifest {
     pub mode: Mode,
     /// Project metadata (SoT for Cargo.toml, Homebrew, etc.)
     #[serde(default)]
-    pub meta: MetaSection,
+    pub project: MetaSection,
     #[serde(default)]
     pub workspace: WorkspaceSection,
     #[serde(default)]
@@ -46,8 +46,9 @@ pub struct Manifest {
     pub packages: PackagesSection,
     #[serde(default)]
     pub guards: GuardsSection,
+    /// App definitions (for package.json generation)
     #[serde(default)]
-    pub project: Vec<ProjectDefinition>,
+    pub app: Vec<ProjectDefinition>,
     #[serde(default)]
     pub orchestration: OrchestrationSection,
     /// User-defined commands (airis run <task>)
@@ -134,7 +135,7 @@ impl Manifest {
         Manifest {
             version: 1,
             mode: Mode::DockerFirst,
-            meta: MetaSection::default(),
+            project: MetaSection::default(),
             workspace: WorkspaceSection {
                 name: name.to_string(),
                 package_manager: "pnpm@10.22.0".to_string(),
@@ -154,7 +155,7 @@ impl Manifest {
             rule,
             packages,
             guards: GuardsSection::default(),
-            project: vec![],
+            app: vec![],
             orchestration: OrchestrationSection::default(),
             commands: {
                 let mut cmds = IndexMap::new();

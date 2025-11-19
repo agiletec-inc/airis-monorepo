@@ -23,10 +23,10 @@ jobs:
       - name: Read version from manifest.toml
         id: version
         run: |
-          # Single Source of Truth: manifest.toml [meta].version
+          # Single Source of Truth: manifest.toml [project].version
           VERSION=$(grep '^version = ' manifest.toml | grep -v '^version = 1$' | head -1 | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version from manifest.toml [meta]: $VERSION"
+          echo "📦 Version from manifest.toml [project]: $VERSION"
 
       - name: Validate Cargo.toml is in sync
         run: |

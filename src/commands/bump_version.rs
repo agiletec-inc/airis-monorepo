@@ -30,15 +30,15 @@ pub fn run(mode: BumpMode) -> Result<()> {
     let mut manifest = Manifest::load(manifest_path)
         .with_context(|| format!("Failed to load {}", MANIFEST_FILE))?;
 
-    // Use [meta].version as SoT, fallback to versioning.source for backward compatibility
-    let current_version = if !manifest.meta.version.is_empty() {
-        manifest.meta.version.clone()
+    // Use [project].version as SoT, fallback to versioning.source for backward compatibility
+    let current_version = if !manifest.project.version.is_empty() {
+        manifest.project.version.clone()
     } else {
         manifest.versioning.source.clone()
     };
 
     if current_version.is_empty() {
-        bail!("❌ No version found in manifest.toml. Add [meta].version or [versioning].source.");
+        bail!("❌ No version found in manifest.toml. Add [project].version or [versioning].source.");
     }
 
     // Determine bump type
@@ -71,8 +71,8 @@ pub fn run(mode: BumpMode) -> Result<()> {
         new_version.green().bold()
     );
 
-    // Update manifest.toml [meta].version (SoT)
-    manifest.meta.version = new_version.clone();
+    // Update manifest.toml [project].version (SoT)
+    manifest.project.version = new_version.clone();
     // Also update versioning.source for backward compatibility
     manifest.versioning.source = new_version.clone();
     manifest.save(manifest_path)?;
@@ -81,7 +81,7 @@ pub fn run(mode: BumpMode) -> Result<()> {
     update_cargo_toml(&new_version)?;
 
     println!("✅ Version bumped successfully!");
-    println!("   manifest.toml [meta].version: {}", new_version.green());
+    println!("   manifest.toml [project].version: {}", new_version.green());
     println!("   Cargo.toml: {}", new_version.green());
 
     Ok(())

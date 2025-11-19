@@ -1,7 +1,7 @@
 version = 1
 mode = "docker-first"
 
-[meta]
+[project]
 id = "airis-workspace"
 binary_name = "airis"
 version = "1.5.0"
@@ -193,23 +193,23 @@ danger = [
 
 [guards.deny_with_message]
 
-[[project]]
+[[app]]
 name = "corporate-site"
 kind = "app"
 path = "apps/corporate-site"
 framework = "react-vite"
 
-[project.scripts]
+[app.scripts]
 dev = "vite dev"
 build = "vite build"
 lint = "eslint ."
 test = "vitest"
 
-[project.deps]
+[app.deps]
 react = "catalog"
 react-dom = "catalog"
 
-[project.dev_deps]
+[app.dev_deps]
 typescript = "catalog"
 vite = "catalog"
 vitest = "catalog"

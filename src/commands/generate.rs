@@ -27,14 +27,14 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
         generate_github_workflows(&manifest, &engine)?;
     }
 
-    // Generate individual project package.json files
-    if !manifest.project.is_empty() {
+    // Generate individual app package.json files
+    if !manifest.app.is_empty() {
         println!();
-        println!("{}", "📦 Generating project package.json files...".bright_blue());
+        println!("{}", "📦 Generating app package.json files...".bright_blue());
         let workspace_root = env::current_dir().context("Failed to get current directory")?;
 
-        for project in &manifest.project {
-            generate_project_package_json(project, &workspace_root, &resolved_catalog)?;
+        for app in &manifest.app {
+            generate_project_package_json(app, &workspace_root, &resolved_catalog)?;
         }
     }
 
@@ -48,8 +48,8 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
         println!("   - .github/workflows/ci.yml");
         println!("   - .github/workflows/release.yml");
     }
-    if !manifest.project.is_empty() {
-        println!("   - {} project package.json files", manifest.project.len());
+    if !manifest.app.is_empty() {
+        println!("   - {} app package.json files", manifest.app.len());
     }
     println!();
     println!("{}", "Next steps:".bright_yellow());
