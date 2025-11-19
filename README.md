@@ -1,8 +1,14 @@
-# AIris Workspace
+# 🚀 AIris Workspace
 
-**Docker-first monorepo workspace manager for rapid prototyping**
+**The first Rust-powered, Docker-first Monorepo Engine built for the LLM era**
 
-A blazing-fast CLI built in Rust that enforces Docker-first development with a single manifest file and automatic generation of all derived files.
+- Auto-generate all `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml` from a single `manifest.toml`
+- Write `"latest"` or `"lts"` → automatically resolves to real semver (no more broken tests)
+- LLM breaks your config? → `airis init` self-heals instantly
+
+> **NX and Turborepo were built for humans. airis-workspace is built for AI-assisted development.**
+>
+> Zero-Config Monorepo Engine for 2025+
 
 ---
 
