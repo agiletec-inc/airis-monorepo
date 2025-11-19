@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use indexmap::IndexMap;
 use std::env;
+use std::fs;
+use std::path::Path;
 
 use crate::commands::sync_deps::resolve_version;
 use crate::generators::package_json::generate_project_package_json;
@@ -20,6 +22,11 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     generate_package_json(&manifest, &engine)?;
     generate_pnpm_workspace(&manifest, &engine, &resolved_catalog)?;
 
+    // Generate GitHub Actions workflows if CI is enabled
+    if manifest.ci.enabled {
+        generate_github_workflows(&manifest, &engine)?;
+    }
+
     // Generate individual project package.json files
     if !manifest.project.is_empty() {
         println!();
@@ -37,6 +44,10 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     println!("   - justfile");
     println!("   - package.json");
     println!("   - pnpm-workspace.yaml");
+    if manifest.ci.enabled {
+        println!("   - .github/workflows/ci.yml");
+        println!("   - .github/workflows/release.yml");
+    }
     if !manifest.project.is_empty() {
         println!("   - {} project package.json files", manifest.project.len());
     }
@@ -121,5 +132,22 @@ fn resolve_catalog_versions(
 fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
     let content = engine.render_docker_compose(manifest)?;
     std::fs::write("docker-compose.yml", content).context("Failed to write docker-compose.yml")?;
+    Ok(())
+}
+
+fn generate_github_workflows(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+    // Create .github/workflows directory
+    let workflows_dir = Path::new(".github/workflows");
+    fs::create_dir_all(workflows_dir).context("Failed to create .github/workflows directory")?;
+
+    // Generate ci.yml
+    let ci_content = engine.render_ci_yml(manifest)?;
+    fs::write(workflows_dir.join("ci.yml"), ci_content).context("Failed to write ci.yml")?;
+
+    // Generate release.yml
+    let release_content = engine.render_release_yml(manifest)?;
+    fs::write(workflows_dir.join("release.yml"), release_content)
+        .context("Failed to write release.yml")?;
+
     Ok(())
 }

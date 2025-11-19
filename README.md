@@ -71,6 +71,80 @@ cd your-monorepo && airis init
 
 ---
 
+## 🧠 Design Philosophy: Why Not NX/Turborepo?
+
+**airis-workspace is not competing with NX/Turborepo. The design philosophy is fundamentally different.**
+
+### Different Eras, Different Tools
+
+| Tool | Era | Philosophy |
+|------|-----|------------|
+| **NX/Turborepo** | Human-managed monorepo | Humans manually maintain complex config files |
+| **airis** | LLM-managed monorepo | AI auto-generates and self-repairs everything |
+
+### NX/Turbo's Problem: Config File Sprawl
+
+NX/Turbo requires multiple config files:
+- `workspace.json`
+- `nx.json`
+- `project.json` × N projects
+- Various `.rc` files
+
+**LLMs will break these.** There's no single source of truth.
+
+### airis's Solution: Self-Healing Monorepo
+
+```
+manifest.toml (Single Source of Truth)
+    ↓ airis init
+Everything else (auto-generated)
+```
+
+- **LLM breaks package.json?** → `airis init` regenerates it
+- **LLM runs `pnpm install` on host?** → Guards block it with helpful error
+- **Version conflicts?** → Catalog auto-resolves from npm registry
+
+**This is "break-proof" monorepo design for the AI age.**
+
+### What NX/Turbo Has (That airis Also Has)
+
+- **Affected dependency graph** - `airis affected` analyzes git changes and shows impacted packages
+- Transitive dependency tracking (if A depends on B, changing B marks A as affected)
+
+### What NX/Turbo Has (That airis Doesn't Yet)
+
+- Distributed build cache (for large-scale optimization)
+- Remote cache sharing across teams
+
+**But these features assume "humans maintaining a 3-year-old monorepo".**
+
+For AI-assisted development with auto-regeneration, these become less critical.
+
+### Example: Affected Analysis
+
+```bash
+$ airis affected
+🔍 Analyzing affected packages...
+  📝 Changed files: 12
+  📦 Packages found: 35
+  🎯 Directly changed: 3
+
+📊 Affected packages:
+   - @agiletec/ui
+   - @airis/dashboard      # depends on @agiletec/ui
+   - @airis/voice-gateway  # depends on @agiletec/ui
+```
+
+### Future Roadmap
+
+- `airis build --affected` - Build only affected packages
+- `airis test --affected` - Test only affected packages
+- manifest-driven code generation
+
+**airis is not a NX/Turbo alternative. It's the monorepo OS for the LLM era.**
+
+---
+
 ## 🚀 Quick Start
 
 ### Install AIris Workspace
@@ -87,8 +161,7 @@ cargo install airis
 ### Create New Workspace
 ```bash
 mkdir my-monorepo && cd my-monorepo
-airis init          # Creates manifest.toml + derived files
-airis sync-deps     # Resolve "latest" policies to actual versions
+airis init          # Creates manifest.toml + resolves versions + generates all files
 airis up            # Start Docker services
 ```
 
@@ -96,17 +169,17 @@ airis up            # Start Docker services
 ```bash
 cd your-existing-monorepo
 airis init          # Auto-detects apps/libs/compose files, generates manifest.toml
-                    # Safely moves files to correct locations (no overwrites)
-airis sync-deps     # Update catalog with latest versions
+                    # Resolves catalog versions and generates all derived files
 airis up            # Start everything
 ```
 
-**What `airis init` does for existing projects**:
-1. Scans `apps/` and `libs/` directories
+**What `airis init` does**:
+1. Scans `apps/` and `libs/` directories (for existing projects)
 2. Detects docker-compose.yml locations
-3. Generates `manifest.toml` with detected configuration
-4. Generates package.json, pnpm-workspace.yaml, justfile (optional)
-5. **Never overwrites existing manifest.toml** (read-only after creation)
+3. Generates `manifest.toml` with detected configuration (first run only)
+4. Resolves catalog version policies ("latest" → "^19.2.0") from npm registry
+5. Generates package.json, pnpm-workspace.yaml, justfile with resolved versions
+6. **Never overwrites existing manifest.toml** (read-only after creation)
 
 **New in v1.0.2**: All operations now via `airis` commands. No `just` dependency required.
 
@@ -123,7 +196,7 @@ my-monorepo/
 ├── docker-compose.yml    # ❌ Auto-generated (DO NOT EDIT)
 ├── apps/
 │   ├── dashboard/
-│   │   └── package.json  # References catalog: "react": "catalog:"
+│   │   └── package.json  # Resolved versions: "react": "^19.2.0"
 │   └── api/
 │       └── package.json
 └── libs/

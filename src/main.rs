@@ -96,6 +96,16 @@ enum Commands {
         #[arg(long)]
         auto: bool,
     },
+
+    /// Show affected packages based on git changes
+    Affected {
+        /// Base branch/commit to compare against (default: origin/main)
+        #[arg(long, default_value = "origin/main")]
+        base: String,
+        /// Head branch/commit (default: HEAD)
+        #[arg(long, default_value = "HEAD")]
+        head: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -173,6 +183,9 @@ fn main() -> Result<()> {
         Commands::Install => commands::run::run("install")?,
         Commands::Build => commands::run::run("build")?,
         Commands::Clean => commands::run::run("clean")?,
+        Commands::Affected { base, head } => {
+            commands::affected::run(&base, &head)?;
+        }
         Commands::BumpVersion {
             major,
             minor,

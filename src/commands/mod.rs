@@ -1,3 +1,4 @@
+pub mod affected;
 pub mod bump_version;
 pub mod discover;
 pub mod docs;

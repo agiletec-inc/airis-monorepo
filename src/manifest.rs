@@ -59,6 +59,9 @@ pub struct Manifest {
     /// Documentation management (CLAUDE.md, .cursorrules, etc.)
     #[serde(default)]
     pub docs: DocsSection,
+    /// CI/CD configuration
+    #[serde(default)]
+    pub ci: CiSection,
 }
 
 impl Manifest {
@@ -149,10 +152,24 @@ impl Manifest {
             guards: GuardsSection::default(),
             project: vec![],
             orchestration: OrchestrationSection::default(),
-            commands: IndexMap::new(),
+            commands: {
+                let mut cmds = IndexMap::new();
+                cmds.insert("up".to_string(), "docker compose up -d".to_string());
+                cmds.insert("down".to_string(), "docker compose down --remove-orphans".to_string());
+                cmds.insert("shell".to_string(), "docker compose exec -it workspace sh".to_string());
+                cmds.insert("install".to_string(), "docker compose exec workspace pnpm install".to_string());
+                cmds.insert("dev".to_string(), "docker compose exec workspace pnpm dev".to_string());
+                cmds.insert("build".to_string(), "docker compose exec workspace pnpm build".to_string());
+                cmds.insert("test".to_string(), "docker compose exec workspace pnpm test".to_string());
+                cmds.insert("clean".to_string(), "rm -rf ./node_modules ./dist ./.next ./build ./target".to_string());
+                cmds.insert("logs".to_string(), "docker compose logs -f".to_string());
+                cmds.insert("ps".to_string(), "docker compose ps".to_string());
+                cmds
+            },
             remap: IndexMap::new(),
             versioning: VersioningSection::default(),
             docs: DocsSection::default(),
+            ci: CiSection::default(),
         }
     }
 }
@@ -537,6 +554,77 @@ pub enum DocsMode {
     Warn,
     /// Create .bak backup before overwriting
     Backup,
+}
+
+/// CI/CD configuration
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CiSection {
+    /// Enable CI workflow generation
+    #[serde(default = "default_ci_enabled")]
+    pub enabled: bool,
+    /// Auto-merge from development branch to main
+    #[serde(default)]
+    pub auto_merge: AutoMergeConfig,
+    /// Auto-versioning using Conventional Commits
+    #[serde(default = "default_true")]
+    pub auto_version: bool,
+    /// GitHub repository owner/name (e.g., "agiletec-inc/my-project")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Homebrew tap repository (e.g., "agiletec-inc/homebrew-tap")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub homebrew_tap: Option<String>,
+}
+
+impl Default for CiSection {
+    fn default() -> Self {
+        CiSection {
+            enabled: default_ci_enabled(),
+            auto_merge: AutoMergeConfig::default(),
+            auto_version: true,
+            repository: None,
+            homebrew_tap: None,
+        }
+    }
+}
+
+fn default_ci_enabled() -> bool {
+    true
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AutoMergeConfig {
+    /// Enable auto-merge
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Source branch (default: "next")
+    #[serde(default = "default_source_branch")]
+    pub from: String,
+    /// Target branch (default: "main")
+    #[serde(default = "default_target_branch")]
+    pub to: String,
+}
+
+impl Default for AutoMergeConfig {
+    fn default() -> Self {
+        AutoMergeConfig {
+            enabled: true,
+            from: default_source_branch(),
+            to: default_target_branch(),
+        }
+    }
+}
+
+fn default_source_branch() -> String {
+    "next".to_string()
+}
+
+fn default_target_branch() -> String {
+    "main".to_string()
 }
 
 impl VersioningSection {
