@@ -1,11 +1,13 @@
 pub mod affected;
 pub mod bump_version;
 pub mod discover;
+pub mod doctor;
 pub mod docs;
 pub mod generate;
 pub mod guards;
 pub mod hooks;
 pub mod init;
 pub mod manifest_cmd;
+pub mod network;
 pub mod run;
 pub mod sync_deps;

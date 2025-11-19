@@ -64,6 +64,13 @@ enum Commands {
     /// Validate workspace configuration
     Validate,
 
+    /// Diagnose and heal workspace configuration issues
+    Doctor {
+        /// Automatically fix detected issues
+        #[arg(long)]
+        fix: bool,
+    },
+
     /// Sync dependencies: resolve catalog policies to actual versions
     #[command(name = "sync-deps")]
     SyncDeps,
@@ -97,6 +104,12 @@ enum Commands {
 
     /// Clean build artifacts (alias for 'run clean')
     Clean,
+
+    /// Docker network management
+    Network {
+        #[command(subcommand)]
+        action: NetworkCommands,
+    },
 
     /// Bump version in manifest.toml and Cargo.toml
     #[command(name = "bump-version")]
@@ -161,6 +174,17 @@ enum ManifestCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum NetworkCommands {
+    /// Initialize Docker networks for the workspace
+    Init,
+    /// List Docker networks for the workspace
+    List,
+    /// Remove Docker networks for the workspace
+    #[command(name = "rm")]
+    Remove,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -201,6 +225,7 @@ fn main() -> Result<()> {
         Commands::Validate => {
             println!("⚠️  Validate command not yet implemented");
         }
+        Commands::Doctor { fix } => commands::doctor::run(fix)?,
         Commands::SyncDeps => commands::sync_deps::run()?,
         Commands::Run { task } => commands::run::run(&task)?,
         Commands::Up => commands::run::run("up")?,
@@ -211,6 +236,11 @@ fn main() -> Result<()> {
         Commands::Install => commands::run::run("install")?,
         Commands::Build => commands::run::run("build")?,
         Commands::Clean => commands::run::run("clean")?,
+        Commands::Network { action } => match action {
+            NetworkCommands::Init => commands::network::init()?,
+            NetworkCommands::List => commands::network::list()?,
+            NetworkCommands::Remove => commands::network::remove()?,
+        },
         Commands::Affected { base, head } => {
             commands::affected::run(&base, &head)?;
         }
