@@ -361,6 +361,10 @@ fn default_workspace_workdir() -> String {
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct DevSection {
+    /// Apps to start in development (preferred over autostart)
+    #[serde(default)]
+    pub apps: Vec<String>,
+    /// Legacy: apps to autostart (use apps instead)
     #[serde(default)]
     pub autostart: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -377,8 +381,6 @@ pub struct AppConfig {
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "type")]
     pub app_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub port: Option<u16>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

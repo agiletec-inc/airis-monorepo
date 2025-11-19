@@ -15,14 +15,107 @@ services:
     stdin_open: true
     tty: true
 
+  corporate-site:
+    container_name: airis-workspace-corporate-site
+    build:
+      context: .
+      dockerfile: apps/corporate-site/Dockerfile
+    env_file:
+      - ./apps/corporate-site/.env
+    ports:
+      - "${CORPORATE_SITE_HOST_PORT:-}:3000"
+    volumes:
+      - ./apps/corporate-site:/app
+      - ./libs:/app/libs
+      - corporate-site-node-modules:/app/node_modules
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.corporate-site.rule=Host(`corporate-site.localhost`)"
+      - "traefik.http.routers.corporate-site.entrypoints=web"
+      - "traefik.http.services.corporate-site.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+
+  airis-dashboard:
+    container_name: airis-workspace-airis-dashboard
+    build:
+      context: .
+      dockerfile: apps/airis-dashboard/Dockerfile
+    env_file:
+      - ./apps/airis-dashboard/.env
+    ports:
+      - "${AIRIS_DASHBOARD_HOST_PORT:-}:3000"
+    volumes:
+      - ./apps/airis-dashboard:/app
+      - ./libs:/app/libs
+      - airis-dashboard-node-modules:/app/node_modules
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.airis-dashboard.rule=Host(`airis-dashboard.localhost`)"
+      - "traefik.http.routers.airis-dashboard.entrypoints=web"
+      - "traefik.http.services.airis-dashboard.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+
+  airis-auto-call:
+    container_name: airis-workspace-airis-auto-call
+    build:
+      context: .
+      dockerfile: apps/airis-auto-call/Dockerfile
+    env_file:
+      - ./apps/airis-auto-call/.env
+    ports:
+      - "${AIRIS_AUTO_CALL_HOST_PORT:-}:3000"
+    volumes:
+      - ./apps/airis-auto-call:/app
+      - ./libs:/app/libs
+      - airis-auto-call-node-modules:/app/node_modules
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.airis-auto-call.rule=Host(`airis-auto-call.localhost`)"
+      - "traefik.http.routers.airis-auto-call.entrypoints=web"
+      - "traefik.http.services.airis-auto-call.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+
+  focustoday-web:
+    container_name: airis-workspace-focustoday-web
+    build:
+      context: .
+      dockerfile: apps/focustoday-web/Dockerfile
+    env_file:
+      - ./apps/focustoday-web/.env
+    ports:
+      - "${FOCUSTODAY_WEB_HOST_PORT:-}:3000"
+    volumes:
+      - ./apps/focustoday-web:/app
+      - ./libs:/app/libs
+      - focustoday-web-node-modules:/app/node_modules
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.focustoday-web.rule=Host(`focustoday-web.localhost`)"
+      - "traefik.http.routers.focustoday-web.entrypoints=web"
+      - "traefik.http.services.focustoday-web.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+
   postgres:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
+
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
+networks:
+  traefik:
+    external: true
+
 volumes:
   workspace-node-modules:
+  corporate-site-node-modules:
+  airis-dashboard-node-modules:
+  airis-auto-call-node-modules:
+  focustoday-web-node-modules:

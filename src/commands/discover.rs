@@ -19,7 +19,6 @@ pub struct DiscoveredApp {
     pub name: String,
     pub path: PathBuf,
     pub app_type: AppType,
-    pub port: Option<u16>,
 }
 
 #[derive(Debug)]
@@ -188,13 +187,11 @@ fn detect_package(dir: &Path) -> Result<Option<DiscoveredApp>> {
             .unwrap_or("unknown")
             .to_string();
         let app_type = detect_app_type(dir);
-        let port = extract_port_from_package_json(dir);
 
         return Ok(Some(DiscoveredApp {
             name,
             path: dir.to_path_buf(),
             app_type,
-            port,
         }));
     }
 
@@ -210,7 +207,6 @@ fn detect_package(dir: &Path) -> Result<Option<DiscoveredApp>> {
             name,
             path: dir.to_path_buf(),
             app_type: AppType::Rust,
-            port: None,
         }));
     }
 
@@ -226,7 +222,6 @@ fn detect_package(dir: &Path) -> Result<Option<DiscoveredApp>> {
             name,
             path: dir.to_path_buf(),
             app_type: AppType::Python,
-            port: None,
         }));
     }
 
@@ -306,32 +301,6 @@ fn detect_app_type(app_dir: &Path) -> AppType {
     }
 
     AppType::Unknown
-}
-
-fn extract_port_from_package_json(app_dir: &Path) -> Option<u16> {
-    let package_json_path = app_dir.join("package.json");
-    if !package_json_path.exists() {
-        return None;
-    }
-
-    let content = fs::read_to_string(&package_json_path).ok()?;
-    let package: serde_json::Value = serde_json::from_str(&content).ok()?;
-
-    // Try to extract port from dev script (e.g., "next dev -p 3000")
-    if let Some(scripts) = package.get("scripts").and_then(|s| s.as_object()) {
-        if let Some(dev_script) = scripts.get("dev").and_then(|s| s.as_str()) {
-            // Parse "-p 3000" or "--port 3000"
-            if let Some(port_str) = dev_script
-                .split_whitespace()
-                .skip_while(|&s| s != "-p" && s != "--port")
-                .nth(1)
-            {
-                return port_str.parse().ok();
-            }
-        }
-    }
-
-    None
 }
 
 fn discover_compose_files(root: &Path) -> Result<DiscoveredComposeFiles> {

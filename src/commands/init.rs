@@ -135,7 +135,6 @@ fn create_manifest_from_discovery(
             AppConfig {
                 path: rel_path,
                 app_type: app_type_str,
-                port: app.port,
             },
         );
     }
