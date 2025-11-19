@@ -1,27 +1,73 @@
 #!/bin/bash
 # airis-workspace pre-commit hook
 # Auto-increments version based on commit message
+# Works for both airis projects (manifest.toml) and Rust projects (Cargo.toml)
 
 set -e
 
-# Only run if manifest.toml exists
-if [ ! -f "manifest.toml" ]; then
+# Detect project type
+HAS_MANIFEST=false
+HAS_CARGO=false
+
+if [ -f "manifest.toml" ]; then
+    HAS_MANIFEST=true
+fi
+
+if [ -f "Cargo.toml" ]; then
+    HAS_CARGO=true
+fi
+
+# Exit if neither exists
+if [ "$HAS_MANIFEST" = false ] && [ "$HAS_CARGO" = false ]; then
     exit 0
 fi
 
-# Check if versioning strategy is not "manual"
-STRATEGY=$(grep 'strategy = ' manifest.toml | sed 's/.*strategy = "\([^"]*\)".*/\1/')
+# Check if source files are staged
+SOURCE_CHANGED=false
 
-if [ "$STRATEGY" = "manual" ]; then
-    echo "ℹ️  Versioning strategy is 'manual'. Skipping auto-bump."
+if git diff --cached --name-only | grep -qE '^src/'; then
+    SOURCE_CHANGED=true
+fi
+
+# Also check for manifest.toml projects
+if [ "$HAS_MANIFEST" = true ]; then
+    if git diff --cached --name-only | grep -qE '^(apps|libs|packages)/'; then
+        SOURCE_CHANGED=true
+    fi
+fi
+
+# If no source changes, skip version bump
+if [ "$SOURCE_CHANGED" = false ]; then
     exit 0
+fi
+
+# Check versioning strategy (for manifest.toml projects)
+if [ "$HAS_MANIFEST" = true ]; then
+    STRATEGY=$(grep 'strategy = ' manifest.toml 2>/dev/null | sed 's/.*strategy = "\([^"]*\)".*/\1/' || echo "auto")
+
+    if [ "$STRATEGY" = "manual" ]; then
+        echo "ℹ️  Versioning strategy is 'manual'. Skipping auto-bump."
+        exit 0
+    fi
 fi
 
 # Run airis bump-version --auto
-echo "🔄 Auto-bumping version..."
-airis bump-version --auto
+echo "🔄 Auto-bumping version based on commit message..."
+if command -v airis &> /dev/null; then
+    airis bump-version --auto
+else
+    echo "⚠️  airis not found. Please install airis or bump version manually."
+    echo "   Run: cargo install --path . (if in airis-workspace)"
+    exit 1
+fi
 
-# Stage updated files
-git add manifest.toml Cargo.toml
+# Stage updated version files
+if [ "$HAS_MANIFEST" = true ]; then
+    git add manifest.toml
+fi
 
-echo "✅ Version auto-bumped"
+if [ "$HAS_CARGO" = true ]; then
+    git add Cargo.toml Cargo.lock 2>/dev/null || true
+fi
+
+echo "✅ Version auto-bumped and staged"
