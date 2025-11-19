@@ -6,20 +6,57 @@ use std::process::Command;
 
 use crate::manifest::Manifest;
 
+/// Build docker compose command with orchestration files
+fn build_compose_command(manifest: &Manifest, base_cmd: &str) -> String {
+    // Check if orchestration.dev is configured
+    if let Some(dev) = &manifest.orchestration.dev {
+        let mut compose_files = Vec::new();
+
+        // Add workspace compose file
+        if let Some(workspace) = &dev.workspace {
+            compose_files.push(format!("-f {}", workspace));
+        }
+
+        // Add supabase compose files
+        if let Some(supabase) = &dev.supabase {
+            for file in supabase {
+                compose_files.push(format!("-f {}", file));
+            }
+        }
+
+        // Add traefik compose file
+        if let Some(traefik) = &dev.traefik {
+            compose_files.push(format!("-f {}", traefik));
+        }
+
+        if !compose_files.is_empty() {
+            return format!("docker compose {} {}", compose_files.join(" "), base_cmd);
+        }
+    }
+
+    // Fall back to default (workspace/docker-compose.yml if exists)
+    let workspace_compose = Path::new("workspace/docker-compose.yml");
+    if workspace_compose.exists() {
+        format!("docker compose -f workspace/docker-compose.yml {}", base_cmd)
+    } else {
+        format!("docker compose {}", base_cmd)
+    }
+}
+
 /// Default commands when manifest.toml [commands] is empty
-fn default_commands() -> IndexMap<String, String> {
+fn default_commands(manifest: &Manifest) -> IndexMap<String, String> {
     let mut cmds = IndexMap::new();
-    cmds.insert("up".to_string(), "docker compose up -d".to_string());
-    cmds.insert("down".to_string(), "docker compose down --remove-orphans".to_string());
-    cmds.insert("shell".to_string(), "docker compose exec -it workspace sh".to_string());
-    cmds.insert("install".to_string(), "docker compose exec workspace pnpm install".to_string());
-    cmds.insert("dev".to_string(), "docker compose exec workspace pnpm dev".to_string());
-    cmds.insert("build".to_string(), "docker compose exec workspace pnpm build".to_string());
-    cmds.insert("test".to_string(), "docker compose exec workspace pnpm test".to_string());
-    cmds.insert("lint".to_string(), "docker compose exec workspace pnpm lint".to_string());
+    cmds.insert("up".to_string(), build_compose_command(manifest, "up -d"));
+    cmds.insert("down".to_string(), build_compose_command(manifest, "down --remove-orphans"));
+    cmds.insert("shell".to_string(), build_compose_command(manifest, "exec -it workspace sh"));
+    cmds.insert("install".to_string(), build_compose_command(manifest, "exec workspace pnpm install"));
+    cmds.insert("dev".to_string(), build_compose_command(manifest, "exec workspace pnpm dev"));
+    cmds.insert("build".to_string(), build_compose_command(manifest, "exec workspace pnpm build"));
+    cmds.insert("test".to_string(), build_compose_command(manifest, "exec workspace pnpm test"));
+    cmds.insert("lint".to_string(), build_compose_command(manifest, "exec workspace pnpm lint"));
     cmds.insert("clean".to_string(), "rm -rf ./node_modules ./dist ./.next ./build ./target".to_string());
-    cmds.insert("logs".to_string(), "docker compose logs -f".to_string());
-    cmds.insert("ps".to_string(), "docker compose ps".to_string());
+    cmds.insert("logs".to_string(), build_compose_command(manifest, "logs -f"));
+    cmds.insert("ps".to_string(), build_compose_command(manifest, "ps"));
     cmds
 }
 
@@ -39,7 +76,7 @@ pub fn run(task: &str) -> Result<()> {
 
     // Use manifest commands or fall back to defaults
     let commands = if manifest.commands.is_empty() {
-        default_commands()
+        default_commands(&manifest)
     } else {
         manifest.commands.clone()
     };
