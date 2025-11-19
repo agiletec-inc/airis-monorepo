@@ -53,8 +53,8 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     }
     println!();
     println!("{}", "Next steps:".bright_yellow());
-    println!("  1. Review justfile/docker-compose.yml");
-    println!("  2. Run `just up`");
+    println!("  1. Review docker-compose.yml");
+    println!("  2. Run `airis up`");
 
     Ok(())
 }

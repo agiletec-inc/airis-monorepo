@@ -193,12 +193,12 @@ impl Manifest {
                 rust_edition: String::new(),
             },
             workspace: WorkspaceSection {
-                name: name.to_string(),
+                name: format!("airis-{}", name),  // Prefix to avoid Docker name collisions
                 package_manager: "pnpm@10.22.0".to_string(),
                 service: "workspace".to_string(),
                 image: "node:22-alpine".to_string(),
                 workdir: "/app".to_string(),
-                volumes: vec!["workspace-node-modules:/app/node_modules".to_string()],
+                volumes: vec![format!("{}-node-modules:/app/node_modules", name)],
             },
             catalog: IndexMap::new(),
             workspaces: WorkspacesSection::default(),

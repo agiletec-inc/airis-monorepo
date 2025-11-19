@@ -68,9 +68,8 @@ pub fn install() -> Result<()> {
     println!("{}", "To activate guards:".bright_yellow());
     println!("  export PATH=\"$PWD/{}:$PATH\"", GUARDS_DIR);
     println!();
-    println!("{}", "Or add to justfile:".bright_yellow());
-    println!("  workspace:");
-    println!("    docker compose exec -it -e PATH=\"/app/{}:$$PATH\" workspace sh", GUARDS_DIR);
+    println!("{}", "Or use airis shell:".bright_yellow());
+    println!("  airis shell");
 
     Ok(())
 }
@@ -81,7 +80,7 @@ fn install_deny_guard(guards_dir: &Path, cmd: &str, custom_message: Option<&Stri
     let message = if let Some(msg) = custom_message {
         msg.clone()
     } else {
-        format!("'{}' is denied by manifest.toml [guards.deny].\n\nUse Docker-first workflow instead:\n  just workspace  # Enter container\n  {}              # Run inside container", cmd, cmd)
+        format!("'{}' is denied by manifest.toml [guards.deny].\n\nUse Docker-first workflow instead:\n  airis shell     # Enter container\n  {}              # Run inside container", cmd, cmd)
     };
 
     let content = format!(

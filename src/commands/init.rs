@@ -62,7 +62,7 @@ pub fn run() -> Result<()> {
     println!("{}", "Next steps:".bright_yellow());
     println!("  1. Edit manifest.toml if needed (apps, libs, catalog)");
     println!("  2. Re-run `airis init` to re-sync generated files");
-    println!("  3. Run `just up` to start development");
+    println!("  3. Run `airis up` to start development");
 
     Ok(())
 }

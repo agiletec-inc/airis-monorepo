@@ -1,9 +1,27 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
+use indexmap::IndexMap;
 use std::path::Path;
 use std::process::Command;
 
 use crate::manifest::Manifest;
+
+/// Default commands when manifest.toml [commands] is empty
+fn default_commands() -> IndexMap<String, String> {
+    let mut cmds = IndexMap::new();
+    cmds.insert("up".to_string(), "docker compose up -d".to_string());
+    cmds.insert("down".to_string(), "docker compose down --remove-orphans".to_string());
+    cmds.insert("shell".to_string(), "docker compose exec -it workspace sh".to_string());
+    cmds.insert("install".to_string(), "docker compose exec workspace pnpm install".to_string());
+    cmds.insert("dev".to_string(), "docker compose exec workspace pnpm dev".to_string());
+    cmds.insert("build".to_string(), "docker compose exec workspace pnpm build".to_string());
+    cmds.insert("test".to_string(), "docker compose exec workspace pnpm test".to_string());
+    cmds.insert("lint".to_string(), "docker compose exec workspace pnpm lint".to_string());
+    cmds.insert("clean".to_string(), "rm -rf ./node_modules ./dist ./.next ./build ./target".to_string());
+    cmds.insert("logs".to_string(), "docker compose logs -f".to_string());
+    cmds.insert("ps".to_string(), "docker compose ps".to_string());
+    cmds
+}
 
 /// Execute a command defined in manifest.toml [commands] section
 pub fn run(task: &str) -> Result<()> {
@@ -19,17 +37,22 @@ pub fn run(task: &str) -> Result<()> {
     let manifest = Manifest::load(manifest_path)
         .with_context(|| "Failed to load manifest.toml")?;
 
+    // Use manifest commands or fall back to defaults
+    let commands = if manifest.commands.is_empty() {
+        default_commands()
+    } else {
+        manifest.commands.clone()
+    };
+
     // Check if command exists
-    let cmd = manifest
-        .commands
+    let cmd = commands
         .get(task)
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "❌ Command '{}' not found in manifest.toml [commands] section.\n\n\
                  Available commands:\n{}",
                 task.bold(),
-                manifest
-                    .commands
+                commands
                     .keys()
                     .map(|k| format!("  - {}", k))
                     .collect::<Vec<_>>()
