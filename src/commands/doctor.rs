@@ -12,6 +12,7 @@ use std::path::Path;
 use crate::commands::snapshot::{compare_with_snapshots, DiffType, Snapshots};
 use crate::commands::sync_deps::resolve_version;
 use crate::manifest::{CatalogEntry, Manifest, MANIFEST_FILE};
+use crate::ownership::{get_ownership, Ownership};
 use crate::templates::TemplateEngine;
 
 /// Issue severity levels
@@ -54,6 +55,9 @@ pub fn run(fix: bool) -> Result<()> {
 
     // Check each generated file
     check_generated_files(&manifest, &mut issues)?;
+
+    // Check for orphaned packages (not in manifest)
+    check_orphaned_packages(&manifest, &mut issues)?;
 
     // Report results
     if issues.is_empty() {
@@ -184,13 +188,17 @@ where
     F: FnOnce() -> Result<String>,
 {
     let path = Path::new(filename);
+    let ownership = get_ownership(path);
 
     if !path.exists() {
-        issues.push(Issue {
-            file: filename.to_string(),
-            description: "Missing (will be created)".to_string(),
-            severity: Severity::Error,
-        });
+        // Only report missing for tool-owned files
+        if matches!(ownership, Ownership::Tool | Ownership::Hybrid) {
+            issues.push(Issue {
+                file: filename.to_string(),
+                description: "Missing (will be created)".to_string(),
+                severity: Severity::Error,
+            });
+        }
         return Ok(());
     }
 
@@ -224,11 +232,87 @@ where
             format!("Content mismatch ({} lines differ)", diff_count.max(1))
         };
 
+        // Severity depends on ownership
+        let severity = match ownership {
+            Ownership::Tool => Severity::Error,      // Tool files must match
+            Ownership::Hybrid => Severity::Warning,  // Hybrid files may have user edits
+            Ownership::User => Severity::Warning,    // User files are their responsibility
+        };
+
         issues.push(Issue {
             file: filename.to_string(),
             description,
-            severity: Severity::Error,
+            severity,
         });
+    }
+
+    Ok(())
+}
+
+/// Check for orphaned packages (exist on disk but not in manifest)
+fn check_orphaned_packages(manifest: &Manifest, issues: &mut Vec<Issue>) -> Result<()> {
+    // Get declared apps from manifest
+    let declared_apps: std::collections::HashSet<String> = manifest
+        .dev
+        .apps
+        .iter()
+        .cloned()
+        .chain(manifest.dev.autostart.iter().cloned())
+        .collect();
+
+    // Check apps directory
+    let apps_dir = Path::new("apps");
+    if apps_dir.exists() {
+        for entry in fs::read_dir(apps_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                let app_name = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+
+                // Check if this app has a package.json but isn't in manifest
+                let pkg_json = path.join("package.json");
+                if pkg_json.exists() && !declared_apps.contains(app_name) {
+                    issues.push(Issue {
+                        file: format!("apps/{}", app_name),
+                        description: "Not declared in manifest.toml [dev.apps]".to_string(),
+                        severity: Severity::Warning,
+                    });
+                }
+            }
+        }
+    }
+
+    // Get declared libs from manifest
+    let declared_libs: std::collections::HashSet<String> = manifest
+        .libs
+        .keys()
+        .cloned()
+        .collect();
+
+    // Check libs directory
+    let libs_dir = Path::new("libs");
+    if libs_dir.exists() {
+        for entry in fs::read_dir(libs_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                let lib_name = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+
+                // Check if this lib has a package.json but isn't in manifest
+                let pkg_json = path.join("package.json");
+                if pkg_json.exists() && !declared_libs.contains(lib_name) {
+                    issues.push(Issue {
+                        file: format!("libs/{}", lib_name),
+                        description: "Not declared in manifest.toml [libs]".to_string(),
+                        severity: Severity::Warning,
+                    });
+                }
+            }
+        }
     }
 
     Ok(())
