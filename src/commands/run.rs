@@ -45,6 +45,18 @@ fn exec_command(cmd: &str) -> Result<bool> {
 /// Smart compose up: reuses existing containers if already running
 /// Based on compose_up.py logic
 fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<bool> {
+    // Validate that all compose files exist first
+    for file in compose_files {
+        let path = Path::new(file);
+        if !path.exists() {
+            bail!(
+                "❌ Docker Compose file not found: {}\n\n\
+                 💡 Tip: Check your manifest.toml [dev] section or ensure the file exists.",
+                file
+            );
+        }
+    }
+
     // Build file arguments
     let file_args: Vec<String> = compose_files.iter()
         .flat_map(|f| vec!["-f".to_string(), f.to_string()])
@@ -64,11 +76,22 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
     let output = Command::new("docker")
         .args(&config_args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .output();
 
     // Check existing containers
     if let Ok(output) = output {
+        if !output.status.success() {
+            // Docker compose config failed - likely invalid YAML
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!(
+                "❌ Invalid Docker Compose file(s): {}\n\n\
+                 Docker error:\n{}\n\n\
+                 💡 Check your compose file syntax and network configurations.",
+                compose_files.join(", "),
+                stderr
+            );
+        }
         if output.status.success() {
             if let Ok(config) = serde_json::from_slice::<Value>(&output.stdout) {
                 if let Some(services) = config.get("services").and_then(|s| s.as_object()) {
@@ -112,12 +135,21 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
     let mut up_args = cmd_args.clone();
     up_args.extend(&["up", "-d", "--remove-orphans"]);
 
-    let status = Command::new("docker")
+    let output = Command::new("docker")
         .args(&up_args)
-        .status()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
         .with_context(|| format!("Failed to execute docker compose up"))?;
 
-    Ok(status.success())
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("{}", "❌ Docker Compose up failed:".red().bold());
+        eprintln!("{}", stderr);
+        return Ok(false);
+    }
+
+    Ok(true)
 }
 
 /// Orchestrated startup: supabase -> workspace -> apps
