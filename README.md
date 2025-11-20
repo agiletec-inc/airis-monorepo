@@ -850,6 +850,16 @@ Hope it helps developers building rapid prototypes with monorepos.
 
 ---
 
+## ☕ Support This Project
+
+If airis-workspace saves you time or makes your workflow smoother, consider supporting its development:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/kazukinakad)
+
+Your support helps maintain and improve this tool. Thank you! 🙏
+
+---
+
 ## 🔗 Related Projects
 
 - [makefile-global](https://github.com/kazukinakai/makefile-global) - Predecessor (Make-based)
