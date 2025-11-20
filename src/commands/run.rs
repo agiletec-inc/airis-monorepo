@@ -49,11 +49,13 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
     for file in compose_files {
         let path = Path::new(file);
         if !path.exists() {
-            bail!(
-                "❌ Docker Compose file not found: {}\n\n\
-                 💡 Tip: Check your manifest.toml [dev] section or ensure the file exists.",
-                file
+            eprintln!(
+                "{}\n{}\n\n{}\n",
+                format!("❌ Docker Compose file not found: {}", file).red().bold(),
+                "",
+                "💡 Tip: Check your manifest.toml [dev] section or ensure the file exists.".yellow()
             );
+            return Ok(false);
         }
     }
 
@@ -84,13 +86,14 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
         if !output.status.success() {
             // Docker compose config failed - likely invalid YAML
             let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!(
-                "❌ Invalid Docker Compose file(s): {}\n\n\
-                 Docker error:\n{}\n\n\
-                 💡 Check your compose file syntax and network configurations.",
-                compose_files.join(", "),
-                stderr
+            eprintln!(
+                "{}\n\n{}\n{}\n\n{}\n",
+                format!("❌ Invalid Docker Compose file(s): {}", compose_files.join(", ")).red().bold(),
+                "Docker error:".yellow(),
+                stderr,
+                "💡 Check your compose file syntax and network configurations.".yellow()
             );
+            return Ok(false);
         }
         if output.status.success() {
             if let Ok(config) = serde_json::from_slice::<Value>(&output.stdout) {
@@ -192,12 +195,13 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
         }
     }
 
-    // 3. Start workspace container
+    // 3. Start workspace container (optional)
     if let Some(workspace) = &dev.workspace {
         println!("{}", "🛠️  Starting workspace...".cyan().bold());
 
         if !smart_compose_up(None, &[workspace.as_str()])? {
-            bail!("❌ Failed to start workspace");
+            println!("   {} Workspace failed to start, continuing anyway...", "⚠️".yellow());
+            println!("   {} Apps will run without shared workspace container", "ℹ️".dimmed());
         }
     } else {
         // Fall back to default workspace location
@@ -206,7 +210,8 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
             println!("{}", "🛠️  Starting workspace...".cyan().bold());
 
             if !smart_compose_up(None, &["workspace/docker-compose.yml"])? {
-                bail!("❌ Failed to start workspace");
+                println!("   {} Workspace failed to start, continuing anyway...", "⚠️".yellow());
+                println!("   {} Apps will run without shared workspace container", "ℹ️".dimmed());
             }
         }
     }
