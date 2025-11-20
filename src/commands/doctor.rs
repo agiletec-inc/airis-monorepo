@@ -146,16 +146,18 @@ fn check_generated_files(manifest: &Manifest, issues: &mut Vec<Issue>) -> Result
     // Check package.json
     check_file(
         "package.json",
-        || engine.render_package_json(manifest),
+        || engine.render_package_json(manifest, &resolved_catalog),
         issues,
     )?;
 
-    // Check pnpm-workspace.yaml
-    check_file(
-        "pnpm-workspace.yaml",
-        || engine.render_pnpm_workspace(manifest, &resolved_catalog),
-        issues,
-    )?;
+    // Check pnpm-workspace.yaml (minimal file for pnpm compatibility)
+    if !manifest.packages.workspaces.is_empty() {
+        check_file(
+            "pnpm-workspace.yaml",
+            || engine.render_pnpm_workspace(manifest),
+            issues,
+        )?;
+    }
 
     // Check docker-compose.yml
     check_file(

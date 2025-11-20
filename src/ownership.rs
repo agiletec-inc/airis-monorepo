@@ -72,16 +72,19 @@ pub fn get_ownership(path: &Path) -> Ownership {
 }
 
 /// Check if a file should be backed up before modification
+#[allow(dead_code)]
 pub fn should_backup(ownership: Ownership) -> bool {
     matches!(ownership, Ownership::Tool | Ownership::Hybrid)
 }
 
 /// Check if airis can overwrite a file
+#[allow(dead_code)]
 pub fn can_overwrite(ownership: Ownership) -> bool {
     matches!(ownership, Ownership::Tool | Ownership::Hybrid)
 }
 
 /// Check if airis should fully regenerate a file (vs merge)
+#[allow(dead_code)]
 pub fn should_regenerate(ownership: Ownership) -> bool {
     matches!(ownership, Ownership::Tool)
 }

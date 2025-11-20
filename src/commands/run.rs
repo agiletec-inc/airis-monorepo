@@ -3,8 +3,9 @@ use chrono;
 use colored::Colorize;
 use glob::glob;
 use indexmap::IndexMap;
+use serde_json::Value;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::manifest::Manifest;
 
@@ -41,6 +42,84 @@ fn exec_command(cmd: &str) -> Result<bool> {
     Ok(status.success())
 }
 
+/// Smart compose up: reuses existing containers if already running
+/// Based on compose_up.py logic
+fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<bool> {
+    // Build file arguments
+    let file_args: Vec<String> = compose_files.iter()
+        .flat_map(|f| vec!["-f".to_string(), f.to_string()])
+        .collect();
+
+    // Build project argument
+    let mut cmd_args = vec!["compose"];
+    if let Some(proj) = project {
+        cmd_args.extend(&["-p", proj]);
+    }
+    cmd_args.extend(file_args.iter().map(|s| s.as_str()));
+
+    // Get config to extract container names
+    let mut config_args = cmd_args.clone();
+    config_args.extend(&["config", "--format", "json"]);
+
+    let output = Command::new("docker")
+        .args(&config_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output();
+
+    // Check existing containers
+    if let Ok(output) = output {
+        if output.status.success() {
+            if let Ok(config) = serde_json::from_slice::<Value>(&output.stdout) {
+                if let Some(services) = config.get("services").and_then(|s| s.as_object()) {
+                    let mut not_running = Vec::new();
+
+                    for service in services.values() {
+                        if let Some(container_name) = service.get("container_name").and_then(|c| c.as_str()) {
+                            // Check if container is running
+                            let inspect = Command::new("docker")
+                                .args(&["inspect", "-f", "{{.State.Running}}", container_name])
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::null())
+                                .output();
+
+                            let is_running = if let Ok(inspect_output) = inspect {
+                                inspect_output.status.success() &&
+                                    String::from_utf8_lossy(&inspect_output.stdout).trim() == "true"
+                            } else {
+                                false
+                            };
+
+                            if !is_running {
+                                not_running.push(container_name.to_string());
+                            }
+                        }
+                    }
+
+                    if !not_running.is_empty() {
+                        for name in &not_running {
+                            println!("     {} detected stopped/missing container: {}", "🔍".dimmed(), name.dimmed());
+                        }
+                    } else {
+                        println!("     {} containers already running; refreshing...", "✓".dimmed());
+                    }
+                }
+            }
+        }
+    }
+
+    // Execute docker compose up -d --remove-orphans
+    let mut up_args = cmd_args.clone();
+    up_args.extend(&["up", "-d", "--remove-orphans"]);
+
+    let status = Command::new("docker")
+        .args(&up_args)
+        .status()
+        .with_context(|| format!("Failed to execute docker compose up"))?;
+
+    Ok(status.success())
+}
+
 /// Orchestrated startup: supabase -> workspace -> apps
 fn orchestrated_up(manifest: &Manifest) -> Result<()> {
     let dev = &manifest.dev;
@@ -48,13 +127,9 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
     // 1. Start Supabase (if configured)
     if let Some(supabase_files) = &dev.supabase {
         println!("{}", "📦 Starting Supabase...".cyan().bold());
-        let files: Vec<String> = supabase_files.iter()
-            .map(|f| format!("-f {}", f))
-            .collect();
-        let cmd = format!("docker compose {} up -d", files.join(" "));
-        println!("   {}", cmd.dimmed());
+        let files: Vec<&str> = supabase_files.iter().map(|s| s.as_str()).collect();
 
-        if !exec_command(&cmd)? {
+        if !smart_compose_up(None, &files)? {
             bail!("❌ Failed to start Supabase");
         }
 
@@ -79,10 +154,8 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
     // 2. Start Traefik (if configured)
     if let Some(traefik) = &dev.traefik {
         println!("{}", "🔀 Starting Traefik...".cyan().bold());
-        let cmd = format!("docker compose -f {} up -d", traefik);
-        println!("   {}", cmd.dimmed());
 
-        if !exec_command(&cmd)? {
+        if !smart_compose_up(None, &[traefik.as_str()])? {
             println!("   {} Traefik failed to start, continuing anyway...", "⚠️".yellow());
         }
     }
@@ -90,10 +163,8 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
     // 3. Start workspace container
     if let Some(workspace) = &dev.workspace {
         println!("{}", "🛠️  Starting workspace...".cyan().bold());
-        let cmd = format!("docker compose -f {} up -d", workspace);
-        println!("   {}", cmd.dimmed());
 
-        if !exec_command(&cmd)? {
+        if !smart_compose_up(None, &[workspace.as_str()])? {
             bail!("❌ Failed to start workspace");
         }
     } else {
@@ -101,10 +172,8 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
         let default_workspace = Path::new("workspace/docker-compose.yml");
         if default_workspace.exists() {
             println!("{}", "🛠️  Starting workspace...".cyan().bold());
-            let cmd = "docker compose -f workspace/docker-compose.yml up -d";
-            println!("   {}", cmd.dimmed());
 
-            if !exec_command(cmd)? {
+            if !smart_compose_up(None, &["workspace/docker-compose.yml"])? {
                 bail!("❌ Failed to start workspace");
             }
         }
@@ -141,20 +210,10 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
 
             println!("   {} Starting {}...", "→".dimmed(), app_name.bold());
 
-            // Try common profile names: airis, app_name
-            let profile_name = app_name.replace("-", "_");
-            let cmd_with_profile = format!("docker compose -f {} --profile airis --profile {} up -d", compose_path, profile_name);
-            let cmd_default = format!("docker compose -f {} up -d --remove-orphans", compose_path);
-
-            // Try with profiles first, then without
-            if !exec_command(&cmd_with_profile).unwrap_or(false) {
-                if !exec_command(&cmd_default)? {
-                    println!("   {} {} failed to start", "⚠️".yellow(), app_name);
-                } else {
-                    println!("   {} {} started", "✅".green(), app_name);
-                }
-            } else {
+            if smart_compose_up(None, &[compose_path.as_str()])? {
                 println!("   {} {} started", "✅".green(), app_name);
+            } else {
+                println!("   {} {} failed to start", "⚠️".yellow(), app_name);
             }
         }
     }
@@ -314,14 +373,28 @@ fn default_commands(manifest: &Manifest) -> IndexMap<String, String> {
     cmds.insert("ps".to_string(), build_compose_command(manifest, "ps"));
     cmds.insert("shell".to_string(), build_compose_command(manifest, &format!("exec -it {} sh", service)));
 
-    // Package manager commands (auto-inferred from manifest.workspace.package_manager)
-    cmds.insert("install".to_string(), build_compose_command(manifest, &format!("exec {} {} install", service, pm)));
-    cmds.insert("dev".to_string(), build_compose_command(manifest, &format!("exec {} {} dev", service, pm)));
-    cmds.insert("build".to_string(), build_compose_command(manifest, &format!("exec {} {} build", service, pm)));
-    cmds.insert("test".to_string(), build_compose_command(manifest, &format!("exec {} {} test", service, pm)));
-    cmds.insert("lint".to_string(), build_compose_command(manifest, &format!("exec {} {} lint", service, pm)));
-    cmds.insert("typecheck".to_string(), build_compose_command(manifest, &format!("exec {} {} typecheck", service, pm)));
-    cmds.insert("format".to_string(), build_compose_command(manifest, &format!("exec {} {} format", service, pm)));
+    // Detect project type: Rust or Node
+    let is_rust_project = !manifest.project.rust_edition.is_empty()
+        || !manifest.project.binary_name.is_empty();
+
+    if is_rust_project {
+        // Rust project: use cargo commands
+        cmds.insert("install".to_string(), "cargo install --path .".to_string());
+        cmds.insert("build".to_string(), "cargo build --release".to_string());
+        cmds.insert("test".to_string(), "cargo test".to_string());
+        cmds.insert("lint".to_string(), "cargo clippy".to_string());
+        cmds.insert("format".to_string(), "cargo fmt".to_string());
+        cmds.insert("dev".to_string(), "cargo watch -x run".to_string());
+    } else {
+        // Node project: use package manager commands (auto-inferred from manifest.workspace.package_manager)
+        cmds.insert("install".to_string(), build_compose_command(manifest, &format!("exec {} {} install", service, pm)));
+        cmds.insert("dev".to_string(), build_compose_command(manifest, &format!("exec {} {} dev", service, pm)));
+        cmds.insert("build".to_string(), build_compose_command(manifest, &format!("exec {} {} build", service, pm)));
+        cmds.insert("test".to_string(), build_compose_command(manifest, &format!("exec {} {} test", service, pm)));
+        cmds.insert("lint".to_string(), build_compose_command(manifest, &format!("exec {} {} lint", service, pm)));
+        cmds.insert("typecheck".to_string(), build_compose_command(manifest, &format!("exec {} {} typecheck", service, pm)));
+        cmds.insert("format".to_string(), build_compose_command(manifest, &format!("exec {} {} format", service, pm)));
+    }
 
     // Clean command
     cmds.insert("clean".to_string(), build_clean_command(manifest));

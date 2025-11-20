@@ -13,6 +13,8 @@ pub enum ValidateAction {
     Ports,
     Networks,
     Env,
+    Dependencies,
+    Architecture,
     All,
 }
 
@@ -22,6 +24,7 @@ pub fn run(action: ValidateAction) -> Result<()> {
         ValidateAction::Ports => validate_ports(),
         ValidateAction::Networks => validate_networks(),
         ValidateAction::Env => validate_env(),
+        ValidateAction::Dependencies | ValidateAction::Architecture => validate_dependencies(),
         ValidateAction::All => {
             let mut failures = 0;
 
@@ -40,6 +43,11 @@ pub fn run(action: ValidateAction) -> Result<()> {
 
             if let Err(e) = validate_env() {
                 eprintln!("  {} Env validation failed: {}", "❌".red(), e);
+                failures += 1;
+            }
+
+            if let Err(e) = validate_dependencies() {
+                eprintln!("  {} Dependencies validation failed: {}", "❌".red(), e);
                 failures += 1;
             }
 
@@ -244,5 +252,52 @@ fn check_env_file(path: &Path, allowed: &[&str], disallowed: &mut Vec<String>) -
         }
     }
 
+    Ok(())
+}
+
+
+/// Validate dependency architecture rules
+/// Checks that apps only depend on libs (public API), and no cross-app dependencies exist
+fn validate_dependencies() -> Result<()> {
+    println!("{}", "🔍 Validating dependency architecture...".bright_blue());
+
+    // Check if dependency-cruiser config exists
+    let config_path = Path::new("tools/dependency-cruiser.cjs");
+    if !config_path.exists() {
+        println!("  {} dependency-cruiser config not found, skipping", "⏭️".yellow());
+        return Ok(());
+    }
+
+    // Check if dependency-cruiser is installed
+    let check = Command::new("npx")
+        .args(&["dependency-cruiser", "--version"])
+        .output();
+
+    if check.is_err() {
+        println!("  {} dependency-cruiser not installed, skipping", "⏭️".yellow());
+        println!("  {} Install with: pnpm add -D dependency-cruiser", "💡".dimmed());
+        return Ok(());
+    }
+
+    // Run dependency-cruiser
+    println!("  {} Running dependency-cruiser...", "⚙️".dimmed());
+    let status = Command::new("npx")
+        .args(&[
+            "dependency-cruiser",
+            "--config",
+            "tools/dependency-cruiser.cjs",
+            "--output-type",
+            "err",
+            "apps",
+            "libs",
+        ])
+        .status()
+        .context("Failed to run dependency-cruiser")?;
+
+    if !status.success() {
+        bail!("Dependency architecture validation failed. Fix violations above.");
+    }
+
+    println!("  {} No architecture violations found", "✅".green());
     Ok(())
 }

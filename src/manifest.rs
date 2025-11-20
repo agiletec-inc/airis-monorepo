@@ -425,7 +425,7 @@ pub struct DevSection {
     pub traefik: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
@@ -433,7 +433,7 @@ pub struct AppConfig {
     pub app_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct LibConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,

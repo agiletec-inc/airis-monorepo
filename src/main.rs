@@ -208,6 +208,12 @@ enum Commands {
         #[arg(long, default_value = "HEAD")]
         head: String,
     },
+
+    /// Generate code and types from various sources
+    Generate {
+        #[command(subcommand)]
+        action: GenerateCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -260,8 +266,33 @@ enum ValidateCommands {
     Networks,
     /// Check frontend environment variables
     Env,
+    /// Check dependency architecture rules (apps -> libs only, no cross-app dependencies)
+    #[command(name = "deps")]
+    Dependencies,
+    /// Check dependency architecture rules (alias for deps)
+    #[command(name = "arch")]
+    Architecture,
     /// Run all validations
     All,
+}
+
+#[derive(Subcommand)]
+enum GenerateCommands {
+    /// Generate TypeScript types from Supabase PostgreSQL schema
+    Types {
+        /// Supabase PostgreSQL host (default: localhost)
+        #[arg(long, default_value = "localhost")]
+        host: String,
+        /// Supabase PostgreSQL port (default: 54322)
+        #[arg(long, default_value = "54322")]
+        port: String,
+        /// Database name (default: postgres)
+        #[arg(long, default_value = "postgres")]
+        database: String,
+        /// Output directory (default: libs/types)
+        #[arg(short, long, default_value = "libs/types")]
+        output: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -373,6 +404,8 @@ fn main() -> Result<()> {
                 ValidateCommands::Ports => ValidateAction::Ports,
                 ValidateCommands::Networks => ValidateAction::Networks,
                 ValidateCommands::Env => ValidateAction::Env,
+                ValidateCommands::Dependencies => ValidateAction::Dependencies,
+                ValidateCommands::Architecture => ValidateAction::Architecture,
                 ValidateCommands::All => ValidateAction::All,
             };
 
@@ -457,6 +490,16 @@ fn main() -> Result<()> {
         Commands::Affected { base, head } => {
             commands::affected::run(&base, &head)?;
         }
+        Commands::Generate { action } => match action {
+            GenerateCommands::Types {
+                host,
+                port,
+                database,
+                output,
+            } => {
+                commands::generate_types::run(&host, &port, &database, &output)?;
+            }
+        },
         Commands::BumpVersion {
             major,
             minor,

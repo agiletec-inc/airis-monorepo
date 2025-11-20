@@ -4,7 +4,67 @@ use indexmap::IndexMap;
 use serde_json::json;
 use std::process::Command;
 
+use crate::commands::sync_deps::resolve_version;
 use crate::manifest::{MANIFEST_FILE, Manifest};
+
+/// Resolve dependency versions by expanding catalog references and version policies
+///
+/// Supports:
+/// - "catalog:" → look up package name in resolved_catalog
+/// - "catalog:key" → look up "key" in resolved_catalog
+/// - "latest" / "lts" → resolve from npm registry
+/// - Specific version (e.g. "^1.0.0") → use as-is
+fn resolve_dependencies(
+    deps: &IndexMap<String, String>,
+    resolved_catalog: &IndexMap<String, String>,
+) -> Result<IndexMap<String, String>> {
+    let mut resolved = IndexMap::new();
+
+    for (package, version_spec) in deps {
+        let resolved_version = if version_spec == "catalog:" {
+            // "catalog:" → use package name as key
+            resolved_catalog
+                .get(package)
+                .cloned()
+                .unwrap_or_else(|| {
+                    eprintln!(
+                        "⚠️  Warning: {} not found in catalog, using original spec: {}",
+                        package, version_spec
+                    );
+                    version_spec.clone()
+                })
+        } else if let Some(catalog_key) = version_spec.strip_prefix("catalog:") {
+            // "catalog:key" → look up specific key
+            resolved_catalog
+                .get(catalog_key)
+                .cloned()
+                .unwrap_or_else(|| {
+                    eprintln!(
+                        "⚠️  Warning: catalog key '{}' not found for {}, using original spec: {}",
+                        catalog_key, package, version_spec
+                    );
+                    version_spec.clone()
+                })
+        } else if version_spec == "latest" || version_spec == "lts" {
+            // Resolve from npm registry
+            resolve_version(package, version_spec)
+                .unwrap_or_else(|e| {
+                    eprintln!(
+                        "⚠️  Warning: Failed to resolve {} for {}: {}. Using original spec.",
+                        version_spec, package, e
+                    );
+                    version_spec.clone()
+                })
+        } else {
+            // Use as-is (specific version)
+            version_spec.clone()
+        };
+
+        resolved.insert(package.clone(), resolved_version);
+    }
+
+    Ok(resolved)
+}
 
 /// Parse GitHub repository info from git remote URL
 /// Returns (owner, repo) tuple
@@ -57,7 +117,7 @@ impl TemplateEngine {
         let mut hbs = Handlebars::new();
 
         // Disable HTML escaping for JSON/YAML output
-        hbs.register_escape_fn(|s| s.to_string());
+        hbs.register_escape_fn(handlebars::no_escape);
 
         hbs.register_template_string("package_json", PACKAGE_JSON_TEMPLATE)?;
         hbs.register_template_string("pnpm_workspace", PNPM_WORKSPACE_TEMPLATE)?;
@@ -143,19 +203,91 @@ impl TemplateEngine {
         }))
     }
 
-    pub fn render_package_json(&self, manifest: &Manifest) -> Result<String> {
-        let data = self.prepare_package_json_data(manifest)?;
-        self.hbs
-            .render("package_json", &data)
-            .context("Failed to render package.json")
+    pub fn render_package_json(
+        &self,
+        manifest: &Manifest,
+        resolved_catalog: &IndexMap<String, String>,
+    ) -> Result<String> {
+        let root = &manifest.packages.root;
+
+        // Build package.json directly with serde_json to avoid Handlebars escaping issues
+        let mut package_json = serde_json::json!({
+            "name": manifest.workspace.name,
+            "version": "0.0.0",
+            "private": true,
+            "type": "module",
+        });
+
+        let obj = package_json.as_object_mut().unwrap();
+
+        // Add engines if present
+        if !root.engines.is_empty() {
+            obj.insert("engines".to_string(), serde_json::to_value(&root.engines)?);
+        }
+
+        // Add packageManager
+        obj.insert("packageManager".to_string(), serde_json::json!(manifest.workspace.package_manager));
+
+        // Add workspaces if this is a monorepo with packages
+        // This replaces pnpm-workspace.yaml and works with pnpm/npm/yarn/bun
+        if !manifest.packages.workspaces.is_empty() {
+            obj.insert("workspaces".to_string(), serde_json::to_value(&manifest.packages.workspaces)?);
+        } else if !manifest.dev.autostart.is_empty() {
+            // Fallback: infer from dev.autostart
+            let workspaces: Vec<String> = manifest
+                .dev
+                .autostart
+                .iter()
+                .map(|name| format!("apps/{}", name))
+                .collect();
+            if !workspaces.is_empty() {
+                obj.insert("workspaces".to_string(), serde_json::to_value(&workspaces)?);
+            }
+        }
+
+        // Resolve and add dependencies
+        let dependencies = resolve_dependencies(&root.dependencies, resolved_catalog)?;
+        obj.insert("dependencies".to_string(), serde_json::to_value(&dependencies)?);
+
+        // Resolve and add devDependencies
+        let dev_dependencies = resolve_dependencies(&root.dev_dependencies, resolved_catalog)?;
+        obj.insert("devDependencies".to_string(), serde_json::to_value(&dev_dependencies)?);
+
+        // Resolve and add optionalDependencies if present
+        if !root.optional_dependencies.is_empty() {
+            let optional_dependencies = resolve_dependencies(&root.optional_dependencies, resolved_catalog)?;
+            obj.insert("optionalDependencies".to_string(), serde_json::to_value(&optional_dependencies)?);
+        }
+
+        // Add pnpm config if present
+        if !root.pnpm.overrides.is_empty()
+            || !root.pnpm.peer_dependency_rules.ignore_missing.is_empty()
+            || !root.pnpm.only_built_dependencies.is_empty()
+            || !root.pnpm.allowed_scripts.is_empty()
+        {
+            obj.insert("pnpm".to_string(), serde_json::to_value(&root.pnpm)?);
+        }
+
+        // Add scripts
+        obj.insert("scripts".to_string(), serde_json::to_value(&root.scripts)?);
+
+        // Add generation metadata
+        obj.insert("_generated".to_string(), serde_json::json!({
+            "by": "airis init",
+            "from": "manifest.toml",
+            "warning": "⚠️  DO NOT EDIT - Update manifest.toml then rerun `airis init`"
+        }));
+
+        // Serialize to pretty JSON
+        serde_json::to_string_pretty(&package_json)
+            .context("Failed to serialize package.json")
     }
 
     pub fn render_pnpm_workspace(
         &self,
         manifest: &Manifest,
-        resolved_catalog: &IndexMap<String, String>,
     ) -> Result<String> {
-        let data = self.prepare_pnpm_workspace_data(manifest, resolved_catalog)?;
+        let data = self.prepare_pnpm_workspace_data(manifest)?;
         self.hbs
             .render("pnpm_workspace", &data)
             .context("Failed to render pnpm-workspace.yaml")
@@ -168,30 +300,10 @@ impl TemplateEngine {
             .context("Failed to render docker-compose.yml")
     }
 
-    fn prepare_package_json_data(&self, manifest: &Manifest) -> Result<serde_json::Value> {
-        let root = &manifest.packages.root;
-        Ok(json!({
-            "name": manifest.workspace.name,
-            "package_manager": manifest.workspace.package_manager,
-            "dependencies": root.dependencies,
-            "dev_dependencies": root.dev_dependencies,
-            "optional_dependencies": root.optional_dependencies,
-            "scripts": root.scripts,
-            "engines": root.engines,
-            "has_engines": !root.engines.is_empty(),
-            "has_optional_deps": !root.optional_dependencies.is_empty(),
-            "has_pnpm_config": !root.pnpm.overrides.is_empty()
-                || !root.pnpm.peer_dependency_rules.ignore_missing.is_empty()
-                || !root.pnpm.only_built_dependencies.is_empty()
-                || !root.pnpm.allowed_scripts.is_empty(),
-            "pnpm": root.pnpm,
-        }))
-    }
 
     fn prepare_pnpm_workspace_data(
         &self,
         manifest: &Manifest,
-        resolved_catalog: &IndexMap<String, String>,
     ) -> Result<serde_json::Value> {
         let packages = if manifest.packages.workspaces.is_empty() {
             manifest
@@ -206,8 +318,6 @@ impl TemplateEngine {
 
         Ok(json!({
             "packages": packages,
-            "catalog": resolved_catalog,
-            "has_catalog": !resolved_catalog.is_empty(),
             "manifest": MANIFEST_FILE,
         }))
     }
@@ -291,7 +401,7 @@ const PACKAGE_JSON_TEMPLATE: &str = r#"{
 {{#if has_engines}}
   "engines": {
 {{#each engines}}
-    "{{@key}}": "{{this}}"{{#unless @last}},{{/unless}}
+    "{{@key}}": "{{{this}}}"{{#unless @last}},{{/unless}}
 {{/each}}
   },
 {{/if}}
@@ -370,8 +480,21 @@ const PACKAGE_JSON_TEMPLATE: &str = r#"{
 const PNPM_WORKSPACE_TEMPLATE: &str = r#"# Auto-generated by airis init
 # DO NOT EDIT - change manifest.toml instead.
 #
-# Catalog versions are resolved and written directly to package.json files.
-# This file only defines workspace packages for pnpm/npm workspaces.
+# NOTE: No catalog section needed!
+# airis resolves versions from manifest.toml [packages.catalog] and writes
+# them directly to package.json. This is a superior approach because:
+# - Works with any package manager (pnpm/npm/yarn/bun)
+# - Supports "latest", "lts", "follow" policies via airis
+# - No dependency on pnpm's catalog feature
+#
+# Use manifest.toml [packages.catalog] for version management:
+#   [packages.catalog]
+#   next = "latest"      # airis resolves to ^16.0.3
+#   react = "lts"        # airis resolves to ^18.3.1
+#
+# Then reference in dependencies:
+#   [packages.root.devDependencies]
+#   next = "catalog:"    # → ^16.0.3 in package.json
 
 packages:
 {{#each packages}}

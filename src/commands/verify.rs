@@ -2,7 +2,7 @@
 //!
 //! Performs connectivity checks for Traefik, Kong, and workspace services.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 use std::process::Command;
 

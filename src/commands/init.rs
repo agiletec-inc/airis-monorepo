@@ -104,11 +104,198 @@ fn sync_cargo_version_from_git_tag() -> Result<()> {
     Ok(())
 }
 
+/// Validate manifest.toml and print warnings for issues
+fn validate_manifest(manifest: &Manifest) {
+    let mut warnings = Vec::new();
+
+    // Check: auto_version enabled but version field exists in project
+    if manifest.ci.auto_version && !manifest.project.version.is_empty() {
+        warnings.push(format!(
+            "{} [project].version is defined but auto_version is enabled.\n   \
+             Remove version from manifest.toml - it should only exist in Cargo.toml.\n   \
+             Git tags are the source of truth when auto_version = true.",
+            "⚠️ ".yellow()
+        ));
+    }
+
+    // Check: empty apps but docker-compose.yml exists (dangerous overwrite risk)
+    if manifest.apps.is_empty() {
+        let compose_exists = Path::new("docker-compose.yml").exists()
+            || Path::new("workspace/docker-compose.yml").exists();
+        let apps_dir_exists = Path::new("apps").exists();
+
+        if compose_exists && apps_dir_exists {
+            warnings.push(format!(
+                "{} No apps defined in manifest.toml but docker-compose.yml and apps/ exist.\n   \
+                 This may cause existing compose services to be overwritten.\n   \
+                 Run `airis init --snapshot` first, then define apps in manifest.toml.",
+                "⚠️ ".yellow()
+            ));
+        }
+    }
+
+    // Check: project.id is missing
+    if manifest.project.id.is_empty() {
+        warnings.push(format!(
+            "{} [project].id is not defined.\n   \
+             Add a project identifier to manifest.toml.",
+            "⚠️ ".yellow()
+        ));
+    }
+
+    // Check: workspace.name is default
+    if manifest.workspace.name == "my-workspace" {
+        warnings.push(format!(
+            "{} [workspace].name is using default value 'my-workspace'.\n   \
+             Consider setting a proper workspace name.",
+            "💡".cyan()
+        ));
+    }
+
+    // Check: guards defined but npm/pnpm not in deny list
+    if !manifest.guards.deny.is_empty() {
+        let has_npm_guard = manifest.guards.deny.iter().any(|cmd| {
+            cmd == "npm" || cmd == "pnpm" || cmd == "yarn"
+        });
+        if !has_npm_guard {
+            warnings.push(format!(
+                "{} Guards are defined but no package manager (npm/pnpm/yarn) is blocked.\n   \
+                 Add them to [guards].deny for Docker-first enforcement.",
+                "💡".cyan()
+            ));
+        }
+    }
+
+    // Print warnings
+    if !warnings.is_empty() {
+        println!();
+        println!("{}", "📋 Manifest validation warnings:".bright_yellow());
+        for warning in warnings {
+            println!("   {}", warning);
+        }
+        println!();
+    }
+}
+
+/// Sync filesystem changes back into manifest.toml (bidirectional sync)
+fn sync_from_filesystem(manifest: &mut Manifest, root: &Path) -> Result<bool> {
+    let discovered = discover::discover_project(root)?;
+    let mut modified = false;
+
+    // Sync [dev] section from docker-compose files
+    if let Some(workspace) = &discovered.compose_files.workspace {
+        let rel_path = workspace.strip_prefix(root)
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.to_string());
+        if manifest.dev.workspace != rel_path {
+            manifest.dev.workspace = rel_path;
+            modified = true;
+        }
+    }
+
+    if !discovered.compose_files.supabase.is_empty() {
+        let supabase_paths: Vec<String> = discovered.compose_files.supabase
+            .iter()
+            .filter_map(|p| {
+                p.strip_prefix(root)
+                    .ok()
+                    .and_then(|rel| rel.to_str())
+                    .map(|s| s.to_string())
+            })
+            .collect();
+        if manifest.dev.supabase != Some(supabase_paths.clone()) {
+            manifest.dev.supabase = Some(supabase_paths);
+            modified = true;
+        }
+    }
+
+    if let Some(traefik) = &discovered.compose_files.traefik {
+        let rel_path = traefik.strip_prefix(root)
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.to_string());
+        if manifest.dev.traefik != rel_path {
+            manifest.dev.traefik = rel_path;
+            modified = true;
+        }
+    }
+
+    // Sync [apps] section from discovered apps
+    for app in &discovered.apps {
+        let rel_path = app.path.strip_prefix(root)
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.to_string());
+
+        let app_type_str = match app.app_type {
+            discover::AppType::NextJs => Some("nextjs".to_string()),
+            discover::AppType::Node => Some("node".to_string()),
+            discover::AppType::Rust => Some("rust".to_string()),
+            discover::AppType::Python => Some("python".to_string()),
+            discover::AppType::Unknown => None,
+        };
+
+        use crate::manifest::AppConfig;
+        let new_config = AppConfig {
+            path: rel_path,
+            app_type: app_type_str,
+        };
+
+        if !manifest.apps.contains_key(&app.name) {
+            manifest.apps.insert(app.name.clone(), new_config);
+            modified = true;
+        } else if let Some(existing) = manifest.apps.get(&app.name) {
+            if existing != &new_config {
+                manifest.apps.insert(app.name.clone(), new_config);
+                modified = true;
+            }
+        }
+    }
+
+    // Sync [libs] section from discovered libs
+    for lib in &discovered.libs {
+        let rel_path = lib.path.strip_prefix(root)
+            .ok()
+            .and_then(|p| p.to_str())
+            .map(|s| s.to_string());
+
+        use crate::manifest::LibConfig;
+        let new_config = LibConfig {
+            path: rel_path,
+        };
+
+        if !manifest.libs.contains_key(&lib.name) {
+            manifest.libs.insert(lib.name.clone(), new_config);
+            modified = true;
+        } else if let Some(existing) = manifest.libs.get(&lib.name) {
+            if existing != &new_config {
+                manifest.libs.insert(lib.name.clone(), new_config);
+                modified = true;
+            }
+        }
+    }
+
+    // Sync [packages.catalog] from package.json
+    for entry in discovered.catalog {
+        use crate::manifest::CatalogEntry;
+        let new_entry = CatalogEntry::Version(entry.version);
+
+        if !manifest.packages.catalog.contains_key(&entry.name) {
+            manifest.packages.catalog.insert(entry.name, new_entry);
+            modified = true;
+        }
+    }
+
+    Ok(modified)
+}
+
 /// Initialize or optimize manifest-driven workspace files
 ///
-/// IMPORTANT: This command NEVER overwrites existing manifest.toml.
-/// - If manifest.toml exists: read-only mode, regenerate other files
-/// - If manifest.toml does not exist: create initial template
+/// NEW BEHAVIOR: Bidirectional sync!
+/// - Always syncs filesystem → manifest.toml (discovers new files)
+/// - Then syncs manifest.toml → generated files
+/// - manifest.toml stays as source of truth but auto-updates from reality
 ///
 /// Snapshot behavior:
 /// - Default: auto-snapshot on first run (when .airis/snapshots.toml doesn't exist)
@@ -138,9 +325,9 @@ pub fn run(force_snapshot: bool, no_snapshot: bool) -> Result<()> {
         println!();
     }
 
-    let manifest = if manifest_path.exists() {
-        // ✅ READ-ONLY MODE: Never modify existing manifest.toml
-        println!("{}", "📖 Using existing manifest.toml as source of truth".bright_blue());
+    let mut manifest = if manifest_path.exists() {
+        // Load existing manifest
+        println!("{}", "📖 Loading existing manifest.toml...".bright_blue());
         Manifest::load(manifest_path)?
     } else {
         // ✅ INITIAL CREATION MODE: Only happens when manifest.toml doesn't exist
@@ -165,20 +352,32 @@ pub fn run(force_snapshot: bool, no_snapshot: bool) -> Result<()> {
             println!();
             println!("{}", "📝 Generating manifest.toml from discovered structure...".bright_blue());
 
-            let manifest = create_manifest_from_discovery(&project_name, discovered, &current_dir);
-            manifest
-                .save(manifest_path)
-                .context("Failed to write manifest.toml")?;
-            manifest
+            create_manifest_from_discovery(&project_name, discovered, &current_dir)
         } else {
             println!("{}", "📝 Generating manifest.toml template...".bright_blue());
-            let manifest = Manifest::default_with_project(&project_name);
-            manifest
-                .save(manifest_path)
-                .context("Failed to write manifest.toml")?;
-            manifest
+            Manifest::default_with_project(&project_name)
         }
     };
+
+    // ⭐ NEW: Always sync from filesystem to manifest
+    println!("{}", "🔄 Syncing filesystem changes to manifest.toml...".bright_blue());
+    let manifest_modified = sync_from_filesystem(&mut manifest, &current_dir)?;
+
+    if manifest_modified {
+        println!("{}", "  ✓ Updated manifest.toml from filesystem changes".green());
+        manifest.save(manifest_path)
+            .context("Failed to save updated manifest.toml")?;
+    } else {
+        println!("{}", "  ✓ No filesystem changes detected".green());
+        // Save if it's a new manifest
+        if !manifest_path.exists() {
+            manifest.save(manifest_path)
+                .context("Failed to write manifest.toml")?;
+        }
+    }
+
+    // Validate manifest and print warnings for configuration issues
+    validate_manifest(&manifest);
 
     // Sync Cargo.toml version from git tag if auto_version is enabled
     // NOTE: manifest.toml is NEVER modified - only Cargo.toml is updated

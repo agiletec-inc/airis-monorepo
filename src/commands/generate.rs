@@ -54,8 +54,13 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     let engine = TemplateEngine::new()?;
     println!("{}", "🧩 Rendering templates...".bright_blue());
     generate_docker_compose(&manifest, &engine)?;
-    generate_package_json(&manifest, &engine)?;
-    generate_pnpm_workspace(&manifest, &engine, &resolved_catalog)?;
+    generate_package_json(&manifest, &engine, &resolved_catalog)?;
+
+    // Generate minimal pnpm-workspace.yaml for pnpm compatibility
+    // (npm/yarn/bun use workspaces from package.json)
+    if !manifest.packages.workspaces.is_empty() {
+        generate_pnpm_workspace(&manifest, &engine)?;
+    }
 
     // Check if this is a Rust project (for CI workflow detection)
     let is_rust_project = !manifest.project.rust_edition.is_empty()
@@ -82,8 +87,7 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     println!();
     println!("{}", "✅ Generated files:".green());
-    println!("   - package.json");
-    println!("   - pnpm-workspace.yaml");
+    println!("   - package.json (with workspaces)");
     if manifest.ci.enabled {
         println!("   - .github/workflows/ci.yml");
         println!("   - .github/workflows/release.yml");
@@ -104,9 +108,13 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
-fn generate_package_json(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+fn generate_package_json(
+    manifest: &Manifest,
+    engine: &TemplateEngine,
+    resolved_catalog: &IndexMap<String, String>,
+) -> Result<()> {
     let path = Path::new("package.json");
-    let content = engine.render_package_json(manifest)?;
+    let content = engine.render_package_json(manifest, resolved_catalog)?;
     write_with_backup(path, &content)?;
     Ok(())
 }
@@ -114,10 +122,9 @@ fn generate_package_json(manifest: &Manifest, engine: &TemplateEngine) -> Result
 fn generate_pnpm_workspace(
     manifest: &Manifest,
     engine: &TemplateEngine,
-    resolved_catalog: &IndexMap<String, String>,
 ) -> Result<()> {
     let path = Path::new("pnpm-workspace.yaml");
-    let content = engine.render_pnpm_workspace(manifest, resolved_catalog)?;
+    let content = engine.render_pnpm_workspace(manifest)?;
     write_with_backup(path, &content)?;
     Ok(())
 }

@@ -4,6 +4,7 @@ pub mod discover;
 pub mod doctor;
 pub mod docs;
 pub mod generate;
+pub mod generate_types;
 pub mod guards;
 pub mod hooks;
 pub mod init;

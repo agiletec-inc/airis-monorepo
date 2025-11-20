@@ -9,6 +9,7 @@ use crate::manifest::{Manifest, MANIFEST_FILE};
 
 /// Template types available for scaffolding (legacy - kept for compatibility)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum TemplateType {
     /// Hono-based TypeScript API
     Api,
@@ -23,6 +24,7 @@ pub enum TemplateType {
 }
 
 impl TemplateType {
+    #[allow(dead_code)]
     fn base_dir(&self) -> &str {
         match self {
             TemplateType::Api => "apps",
@@ -33,6 +35,7 @@ impl TemplateType {
         }
     }
 
+    #[allow(dead_code)]
     fn display_name(&self) -> &str {
         match self {
             TemplateType::Api => "Hono API",
@@ -148,6 +151,7 @@ pub fn run_with_runtime(category: &str, name: &str, runtime: &str) -> Result<()>
 }
 
 /// Run the new command to scaffold a project (legacy interface)
+#[allow(dead_code)]
 pub fn run(template_type: TemplateType, name: &str) -> Result<()> {
     let (category, runtime) = match template_type {
         TemplateType::Api => ("api", "hono"),

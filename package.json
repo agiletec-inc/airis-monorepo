@@ -9,10 +9,10 @@
   "devDependencies": {
   },
   "scripts": {
-    "build": "echo &#x27;Run: just build-&lt;app-name&gt;&#x27;",
-    "dev": "echo &#x27;Run: just dev-&lt;app-name&gt;&#x27;",
-    "lint": "echo &#x27;Run: just lint&#x27;",
-    "test": "echo &#x27;Run: just test&#x27;"
+    "build": "echo 'Run: just build-<app-name>'",
+    "dev": "echo 'Run: just dev-<app-name>'",
+    "lint": "echo 'Run: just lint'",
+    "test": "echo 'Run: just test'"
   },
   "_generated": {
     "by": "airis init",
