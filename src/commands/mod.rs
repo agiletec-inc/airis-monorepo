@@ -9,6 +9,7 @@ pub mod hooks;
 pub mod init;
 pub mod manifest_cmd;
 pub mod network;
+pub mod new_cmd;
 pub mod run;
 pub mod snapshot;
 pub mod sync_deps;

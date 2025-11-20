@@ -56,6 +56,9 @@ impl TemplateEngine {
     pub fn new() -> Result<Self> {
         let mut hbs = Handlebars::new();
 
+        // Disable HTML escaping for JSON/YAML output
+        hbs.register_escape_fn(|s| s.to_string());
+
         hbs.register_template_string("package_json", PACKAGE_JSON_TEMPLATE)?;
         hbs.register_template_string("pnpm_workspace", PNPM_WORKSPACE_TEMPLATE)?;
         hbs.register_template_string("docker_compose", DOCKER_COMPOSE_TEMPLATE)?;
@@ -317,34 +320,34 @@ const PACKAGE_JSON_TEMPLATE: &str = r#"{
 {{#each pnpm.overrides}}
       "{{@key}}": "{{this}}"{{#unless @last}},{{/unless}}
 {{/each}}
-    }{{#if pnpm.peer_dependency_rules.ignore_missing}},{{/if}}{{#if pnpm.only_built_dependencies}},{{/if}}{{#if pnpm.allowed_scripts}},{{/if}}
+    }{{#if pnpm.peerDependencyRules.ignoreMissing}},{{else}}{{#if pnpm.onlyBuiltDependencies}},{{else}}{{#if pnpm.allowedScripts}},{{/if}}{{/if}}{{/if}}
 {{/if}}
-{{#if pnpm.peer_dependency_rules.ignore_missing}}
+{{#if pnpm.peerDependencyRules.ignoreMissing}}
     "peerDependencyRules": {
       "ignoreMissing": [
-{{#each pnpm.peer_dependency_rules.ignore_missing}}
+{{#each pnpm.peerDependencyRules.ignoreMissing}}
         "{{this}}"{{#unless @last}},{{/unless}}
 {{/each}}
-      ]{{#if pnpm.peer_dependency_rules.allowed_versions}},{{/if}}
-{{#if pnpm.peer_dependency_rules.allowed_versions}}
+      ]{{#if pnpm.peerDependencyRules.allowedVersions}},{{/if}}
+{{#if pnpm.peerDependencyRules.allowedVersions}}
       "allowedVersions": {
-{{#each pnpm.peer_dependency_rules.allowed_versions}}
+{{#each pnpm.peerDependencyRules.allowedVersions}}
         "{{@key}}": "{{this}}"{{#unless @last}},{{/unless}}
 {{/each}}
       }
 {{/if}}
-    }{{#if pnpm.only_built_dependencies}},{{/if}}{{#if pnpm.allowed_scripts}},{{/if}}
+    }{{#if pnpm.onlyBuiltDependencies}},{{else}}{{#if pnpm.allowedScripts}},{{/if}}{{/if}}
 {{/if}}
-{{#if pnpm.only_built_dependencies}}
+{{#if pnpm.onlyBuiltDependencies}}
     "onlyBuiltDependencies": [
-{{#each pnpm.only_built_dependencies}}
+{{#each pnpm.onlyBuiltDependencies}}
       "{{this}}"{{#unless @last}},{{/unless}}
 {{/each}}
-    ]{{#if pnpm.allowed_scripts}},{{/if}}
+    ]{{#if pnpm.allowedScripts}},{{/if}}
 {{/if}}
-{{#if pnpm.allowed_scripts}}
+{{#if pnpm.allowedScripts}}
     "allowedScripts": {
-{{#each pnpm.allowed_scripts}}
+{{#each pnpm.allowedScripts}}
       "{{@key}}": {{this}}{{#unless @last}},{{/unless}}
 {{/each}}
     }

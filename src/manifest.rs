@@ -66,6 +66,12 @@ pub struct Manifest {
     /// CI/CD configuration
     #[serde(default)]
     pub ci: CiSection,
+    /// Template definitions for airis new
+    #[serde(default)]
+    pub templates: TemplatesSection,
+    /// Runtime aliases for airis new
+    #[serde(default)]
+    pub runtimes: RuntimesSection,
 }
 
 impl Manifest {
@@ -243,6 +249,8 @@ impl Manifest {
             },
             docs: DocsSection::default(),
             ci: CiSection::default(),
+            templates: TemplatesSection::default(),
+            runtimes: RuntimesSection::default(),
         }
     }
 }
@@ -805,3 +813,84 @@ fn default_target_branch() -> String {
 }
 
 // VersioningSection methods removed - using bump_version.rs instead
+
+// =============================================================================
+// Templates Section (for airis new)
+// =============================================================================
+
+/// Templates configuration for airis new
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct TemplatesSection {
+    /// API templates (e.g., hono, fastapi, rust-axum)
+    #[serde(default)]
+    pub api: IndexMap<String, TemplateConfig>,
+    /// Web templates (e.g., nextjs, vite)
+    #[serde(default)]
+    pub web: IndexMap<String, TemplateConfig>,
+    /// Worker templates (e.g., node-worker, rust-worker)
+    #[serde(default)]
+    pub worker: IndexMap<String, TemplateConfig>,
+    /// CLI templates
+    #[serde(default)]
+    pub cli: IndexMap<String, TemplateConfig>,
+    /// Library templates
+    #[serde(default)]
+    pub lib: IndexMap<String, TemplateConfig>,
+    /// Supabase Edge Function templates
+    #[serde(default)]
+    pub edge: IndexMap<String, TemplateConfig>,
+    /// Supabase trigger templates
+    #[serde(rename = "supabase-trigger", default)]
+    pub supabase_trigger: IndexMap<String, TemplateConfig>,
+    /// Supabase realtime templates
+    #[serde(rename = "supabase-realtime", default)]
+    pub supabase_realtime: IndexMap<String, TemplateConfig>,
+}
+
+/// Template configuration
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TemplateConfig {
+    /// Entry point file (e.g., "src/index.ts", "src/main.rs")
+    #[serde(default)]
+    pub entry: String,
+    /// Dockerfile template path
+    #[serde(default)]
+    pub dockerfile: String,
+    /// Runtime/language identifier
+    #[serde(default)]
+    pub runtime: String,
+    /// Dependencies to inject
+    #[serde(default)]
+    pub deps: Vec<String>,
+    /// Dev dependencies to inject
+    #[serde(default)]
+    pub dev_deps: Vec<String>,
+    /// Features/modules to inject into the template
+    #[serde(default)]
+    pub inject: Vec<String>,
+    /// Package manager config file (package.json, pyproject.toml, Cargo.toml)
+    #[serde(default)]
+    pub package_config: String,
+}
+
+impl Default for TemplateConfig {
+    fn default() -> Self {
+        TemplateConfig {
+            entry: String::new(),
+            dockerfile: String::new(),
+            runtime: String::new(),
+            deps: Vec::new(),
+            dev_deps: Vec::new(),
+            inject: Vec::new(),
+            package_config: String::new(),
+        }
+    }
+}
+
+/// Runtime aliases configuration
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct RuntimesSection {
+    /// Short aliases for runtimes (e.g., "py" -> "fastapi", "ts" -> "hono")
+    #[serde(default)]
+    pub alias: IndexMap<String, String>,
+}

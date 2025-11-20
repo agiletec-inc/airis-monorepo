@@ -113,10 +113,46 @@ enum Commands {
     /// Clean build artifacts (alias for 'run clean')
     Clean,
 
+    /// Show Docker container status
+    Ps,
+
+    /// View Docker logs
+    Logs {
+        /// Service name (optional, defaults to all services)
+        service: Option<String>,
+        /// Follow log output
+        #[arg(short, long)]
+        follow: bool,
+        /// Number of lines to show from the end
+        #[arg(short = 'n', long)]
+        tail: Option<u32>,
+    },
+
+    /// Execute command in a service container
+    Exec {
+        /// Service name
+        service: String,
+        /// Command to execute
+        #[arg(trailing_var_arg = true)]
+        cmd: Vec<String>,
+    },
+
+    /// Restart Docker services
+    Restart {
+        /// Service name (optional, defaults to all services)
+        service: Option<String>,
+    },
+
     /// Docker network management
     Network {
         #[command(subcommand)]
         action: NetworkCommands,
+    },
+
+    /// Create new app, service, or library from template
+    New {
+        #[command(subcommand)]
+        template: NewCommands,
     },
 
     /// Bump version in manifest.toml and Cargo.toml
@@ -193,6 +229,39 @@ enum NetworkCommands {
     Remove,
 }
 
+#[derive(Subcommand)]
+enum NewCommands {
+    /// Create a new API service
+    Api {
+        /// Name of the new service
+        name: String,
+        /// Runtime/framework (e.g., hono, fastapi, rust-axum)
+        #[arg(short, long, default_value = "hono")]
+        runtime: String,
+    },
+    /// Create a new web application
+    Web {
+        /// Name of the new app
+        name: String,
+        /// Runtime/framework (e.g., nextjs, vite)
+        #[arg(short, long, default_value = "nextjs")]
+        runtime: String,
+    },
+    /// Create a new library
+    Lib {
+        /// Name of the new library
+        name: String,
+        /// Runtime/language (e.g., ts, rust)
+        #[arg(short, long, default_value = "ts")]
+        runtime: String,
+    },
+    /// Create a new Supabase Edge Function
+    Edge {
+        /// Name of the edge function
+        name: String,
+    },
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -244,11 +313,37 @@ fn main() -> Result<()> {
         Commands::Install => commands::run::run("install")?,
         Commands::Build => commands::run::run("build")?,
         Commands::Clean => commands::run::run("clean")?,
+        Commands::Ps => commands::run::run("ps")?,
+        Commands::Logs { service, follow, tail } => {
+            commands::run::run_logs(service.as_deref(), follow, tail)?
+        }
+        Commands::Exec { service, cmd } => {
+            commands::run::run_exec(&service, &cmd)?
+        }
+        Commands::Restart { service } => {
+            commands::run::run_restart(service.as_deref())?
+        }
         Commands::Network { action } => match action {
             NetworkCommands::Init => commands::network::init()?,
             NetworkCommands::List => commands::network::list()?,
             NetworkCommands::Remove => commands::network::remove()?,
         },
+        Commands::New { template } => {
+            match template {
+                NewCommands::Api { name, runtime } => {
+                    commands::new_cmd::run_with_runtime("api", &name, &runtime)?;
+                }
+                NewCommands::Web { name, runtime } => {
+                    commands::new_cmd::run_with_runtime("web", &name, &runtime)?;
+                }
+                NewCommands::Lib { name, runtime } => {
+                    commands::new_cmd::run_with_runtime("lib", &name, &runtime)?;
+                }
+                NewCommands::Edge { name } => {
+                    commands::new_cmd::run_with_runtime("edge", &name, "deno")?;
+                }
+            }
+        }
         Commands::Affected { base, head } => {
             commands::affected::run(&base, &head)?;
         }
