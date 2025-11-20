@@ -245,6 +245,8 @@ enum ValidateCommands {
 enum NetworkCommands {
     /// Initialize Docker networks for the workspace
     Init,
+    /// Setup development networks and start Traefik
+    Setup,
     /// List Docker networks for the workspace
     List,
     /// Remove Docker networks for the workspace
@@ -309,6 +311,8 @@ fn main() -> Result<()> {
         }
         Commands::Guards { action } => match action {
             GuardsCommands::Install => commands::guards::install()?,
+            GuardsCommands::CheckDocker => commands::guards::check_docker()?,
+            GuardsCommands::Status => commands::guards::status()?,
         },
         Commands::Hooks { action } => match action {
             HooksCommands::Install => commands::hooks::install()?,
@@ -353,6 +357,7 @@ fn main() -> Result<()> {
         }
         Commands::Network { action } => match action {
             NetworkCommands::Init => commands::network::init()?,
+            NetworkCommands::Setup => commands::network::setup()?,
             NetworkCommands::List => commands::network::list()?,
             NetworkCommands::Remove => commands::network::remove()?,
         },

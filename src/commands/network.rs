@@ -158,6 +158,84 @@ pub fn list() -> Result<()> {
     Ok(())
 }
 
+/// Setup development networks and Traefik
+/// This is equivalent to bootstrap-mac-dev.sh
+pub fn setup() -> Result<()> {
+    let manifest_path = Path::new("manifest.toml");
+
+    if !manifest_path.exists() {
+        bail!(
+            "manifest.toml not found. Run {} first.",
+            "airis init".bold()
+        );
+    }
+
+    let manifest = Manifest::load(manifest_path)
+        .with_context(|| "Failed to load manifest.toml")?;
+
+    let project_name = &manifest.workspace.name;
+    let proxy_network = std::env::var("EXTERNAL_PROXY_NETWORK").unwrap_or_else(|_| "coolify".to_string());
+
+    println!("🚀 Setting up development environment...");
+    println!();
+
+    // 1. Create proxy network (coolify or custom)
+    println!("{}", "Creating proxy network...".bright_blue());
+    if network_exists(&proxy_network)? {
+        println!("  {} {} (already exists)", "✓".green(), proxy_network);
+    } else {
+        create_network(&proxy_network)?;
+        println!("  {} {} (created)", "✓".green(), proxy_network);
+    }
+
+    // 2. Create project networks
+    println!();
+    println!("{}", "Creating project networks...".bright_blue());
+
+    let networks = default_networks();
+    for network in &networks {
+        let network_name = format!("{}{}", project_name, network.suffix);
+
+        if network_exists(&network_name)? {
+            println!("  {} {} (already exists)", "✓".green(), network_name);
+        } else {
+            create_network(&network_name)?;
+            println!("  {} {} (created)", "✓".green(), network_name);
+        }
+    }
+
+    // 3. Start Traefik (if traefik/docker-compose.yml exists)
+    let traefik_compose = Path::new("traefik/docker-compose.yml");
+    if traefik_compose.exists() {
+        println!();
+        println!("{}", "Starting Traefik...".bright_blue());
+
+        let cmd = format!(
+            "EXTERNAL_PROXY_NETWORK={} docker compose -f traefik/docker-compose.yml up -d",
+            proxy_network
+        );
+
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .status()
+            .with_context(|| "Failed to start Traefik")?;
+
+        if status.success() {
+            println!("  {} Traefik started", "✓".green());
+        } else {
+            println!("  {} Traefik failed to start", "⚠".yellow());
+        }
+    }
+
+    println!();
+    println!("{}", "✅ Development environment ready!".green().bold());
+    println!();
+    println!("Dashboard: http://traefik.localhost");
+
+    Ok(())
+}
+
 /// Remove Docker networks for the workspace
 pub fn remove() -> Result<()> {
     let manifest_path = Path::new("manifest.toml");
