@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod generators;
 mod manifest;
+mod ownership;
 mod templates;
 
 use anyhow::Result;
