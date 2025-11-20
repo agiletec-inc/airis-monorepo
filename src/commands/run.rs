@@ -223,13 +223,19 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
     // Display accessible URLs
     println!();
     println!("{}", "📋 Available URLs:".bright_yellow());
-    println!("   Supabase Studio:  http://studio.agiletec.localhost:8081");
-    println!("   Supabase API:     http://localhost:18000");
-    println!("   Traefik:          http://localhost:8081");
+    println!("   Supabase Studio:    http://studio.agiletec.localhost:8081");
+    println!("   Supabase API:       http://localhost:18000");
+    println!("   Traefik Dashboard:  http://localhost:8081");
     println!();
-    println!("{}", "💡 To start apps:".bright_yellow());
-    println!("   cd apps/airis-dashboard && docker compose up");
-    println!("   → Access: http://agiletec.localhost:8081/dashboard");
+    println!("{}", "🚀 Apps (libs building on first access):".bright_yellow());
+    println!("   Dashboard:          http://agiletec.localhost:8081/dashboard");
+    println!("   Evidence Script:    http://agiletec.localhost:8081/evidence-script");
+    println!("   Auto Call:          http://agiletec.localhost:8081/auto-call");
+    println!("   Voice Gateway:      http://agiletec.localhost:8081/voice-gateway");
+    println!("   Corporate Site:     http://agiletec.localhost:8081");
+    println!("   FocusToday API:     http://agiletec.localhost:8081/focustoday-api");
+    println!("   FocusToday Web:     http://agiletec.localhost:8081/focustoday");
+    println!("   FocusToday Mobile:  http://agiletec.localhost:8081/focustoday-mobile");
     println!();
 
     Ok(())
