@@ -391,6 +391,21 @@ impl TemplateEngine {
             .filter_map(|mount| mount.split(':').next().map(|v| v.to_string()))
             .collect();
 
+        // Get proxy network from orchestration.networks config
+        let proxy_network = manifest
+            .orchestration
+            .networks
+            .as_ref()
+            .and_then(|n| n.proxy.clone())
+            .unwrap_or_else(|| "coolify".to_string());
+
+        let default_external = manifest
+            .orchestration
+            .networks
+            .as_ref()
+            .map(|n| n.default_external)
+            .unwrap_or(false);
+
         Ok(json!({
             "project": manifest.workspace.name,
             "workspace_service": manifest.workspace.service,
@@ -402,6 +417,8 @@ impl TemplateEngine {
             "app_services": app_services,
             "has_app_services": !app_services.is_empty(),
             "named_volumes": named_volumes,
+            "proxy_network": proxy_network,
+            "default_external": default_external,
         }))
     }
 
@@ -607,8 +624,6 @@ services:
     build:
       context: .
       dockerfile: {{dockerfile}}
-    env_file:
-      - ./{{path}}/.env
     volumes:
       - ./{{path}}:/app
       - ./libs:/app/libs
@@ -618,7 +633,7 @@ services:
       - "traefik.http.routers.{{name}}.rule=Host(`{{hostname}}`)"
       - "traefik.http.routers.{{name}}.entrypoints=web"
     networks:
-      - traefik
+      - {{../proxy_network}}
 
 {{/each}}
 {{#each services}}
@@ -649,7 +664,9 @@ services:
 networks:
   default:
     name: {{project}}_default
-    external: false
+    external: {{default_external}}
+  {{proxy_network}}:
+    external: true
 
 volumes:
   node_modules:   # ルートnode_modules（ホストに出ない）

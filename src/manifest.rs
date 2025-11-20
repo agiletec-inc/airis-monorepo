@@ -660,6 +660,18 @@ pub struct ProjectDefinition {
 pub struct OrchestrationSection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dev: Option<OrchestrationDev>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub networks: Option<NetworksConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct NetworksConfig {
+    /// External proxy network name (e.g., "coolify", "traefik-public")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    /// Whether default network should be external
+    #[serde(default)]
+    pub default_external: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
