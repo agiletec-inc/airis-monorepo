@@ -251,14 +251,9 @@ enum NewCommands {
     Lib {
         /// Name of the new library
         name: String,
-        /// Runtime/language (e.g., ts, rust)
+        /// Runtime/language (e.g., ts)
         #[arg(short, long, default_value = "ts")]
         runtime: String,
-    },
-    /// Create a new Supabase Edge Function
-    Edge {
-        /// Name of the edge function
-        name: String,
     },
 }
 
@@ -338,9 +333,6 @@ fn main() -> Result<()> {
                 }
                 NewCommands::Lib { name, runtime } => {
                     commands::new_cmd::run_with_runtime("lib", &name, &runtime)?;
-                }
-                NewCommands::Edge { name } => {
-                    commands::new_cmd::run_with_runtime("edge", &name, "deno")?;
                 }
             }
         }
