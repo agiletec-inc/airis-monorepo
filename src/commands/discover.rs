@@ -29,7 +29,7 @@ pub struct DiscoveredLib {
 
 #[derive(Debug, Default)]
 pub struct DiscoveredComposeFiles {
-    /// Root docker-compose.yml (workspace definition)
+    /// Root compose.yml (workspace definition)
     pub workspace: Option<PathBuf>,
     pub supabase: Vec<PathBuf>,
     pub traefik: Option<PathBuf>,
@@ -307,9 +307,9 @@ fn discover_compose_files(root: &Path) -> Result<DiscoveredComposeFiles> {
     let mut compose_files = DiscoveredComposeFiles::default();
 
     // Check root
-    // Root docker-compose.yml is the workspace definition
+    // Root compose.yml is the workspace definition
     // (no separate workspace/ directory needed)
-    let root_compose = root.join("docker-compose.yml");
+    let root_compose = root.join("compose.yml");
     if root_compose.exists() {
         compose_files.workspace = Some(root_compose);
     }
@@ -343,7 +343,7 @@ fn discover_compose_files(root: &Path) -> Result<DiscoveredComposeFiles> {
 fn print_compose_discovery(compose_files: &DiscoveredComposeFiles) {
     if compose_files.workspace.is_some() {
         println!(
-            "  {} Found docker-compose.yml (workspace)",
+            "  {} Found compose.yml (workspace)",
             "✓".green()
         );
     }

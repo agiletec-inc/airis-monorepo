@@ -195,12 +195,12 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
         }
     }
 
-    // 3. Start workspace container (root docker-compose.yml)
-    let workspace_compose = Path::new("docker-compose.yml");
+    // 3. Start workspace container (root compose.yml)
+    let workspace_compose = Path::new("compose.yml");
     if workspace_compose.exists() {
         println!("{}", "🛠️  Starting workspace...".cyan().bold());
 
-        if !smart_compose_up(None, &["docker-compose.yml"])? {
+        if !smart_compose_up(None, &["compose.yml"])? {
             println!("   {} Workspace failed to start, continuing anyway...", "⚠️".yellow());
             println!("   {} Apps will run without shared workspace container", "ℹ️".dimmed());
         }
@@ -302,11 +302,11 @@ fn orchestrated_down(manifest: &Manifest) -> Result<()> {
         }
     }
 
-    // 2. Stop workspace (root docker-compose.yml)
-    let workspace_compose = Path::new("docker-compose.yml");
+    // 2. Stop workspace (root compose.yml)
+    let workspace_compose = Path::new("compose.yml");
     if workspace_compose.exists() {
         println!("{}", "🛑 Stopping workspace...".cyan().bold());
-        let cmd = "docker compose -f docker-compose.yml down --remove-orphans";
+        let cmd = "docker compose -f compose.yml down --remove-orphans";
         let _ = exec_command(cmd);
     }
 
@@ -359,11 +359,11 @@ fn build_compose_command(manifest: &Manifest, base_cmd: &str) -> String {
         }
     }
 
-    // Fall back to default (docker-compose.yml if exists)
-    let workspace_compose = Path::new("docker-compose.yml");
+    // Fall back to default (compose.yml if exists)
+    let workspace_compose = Path::new("compose.yml");
     if workspace_compose.exists() {
-        // If we have a root docker-compose.yml, use it
-        return format!("docker compose -f docker-compose.yml {}", base_cmd);
+        // If we have a root compose.yml, use it
+        return format!("docker compose -f compose.yml {}", base_cmd);
     }
 
     format!("docker compose {}", base_cmd)

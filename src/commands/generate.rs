@@ -178,28 +178,38 @@ fn resolve_catalog_versions(
 }
 
 fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
-    // Generate Dockerfile.dev in root (skip if exists - user may have customized)
-    let dockerfile_path = Path::new("Dockerfile.dev");
+    let dockerfile_content = engine.render_dockerfile_dev(manifest)?;
+    let compose_content = engine.render_docker_compose(manifest)?;
+
+    // If actual files exist, write to .md for comparison (airis init default)
+    // User can review and manually update, or use --force to overwrite
+    let dockerfile_path = Path::new("Dockerfile");
+    let compose_path = Path::new("compose.yml");
+
     if dockerfile_path.exists() {
+        let md_path = Path::new("Dockerfile.md");
+        fs::write(md_path, &dockerfile_content)
+            .with_context(|| "Failed to write Dockerfile.md")?;
         println!(
-            "   {} Dockerfile.dev exists, skipping (use --force to overwrite)",
-            "⏭️".yellow()
+            "   {} Dockerfile exists → wrote Dockerfile.md for comparison",
+            "📄".yellow()
         );
     } else {
-        let dockerfile_content = engine.render_dockerfile_dev(manifest)?;
-        write_with_backup(dockerfile_path, &dockerfile_content)?;
+        fs::write(dockerfile_path, &dockerfile_content)
+            .with_context(|| "Failed to write Dockerfile")?;
     }
 
-    // Generate docker-compose.yml in root (skip if exists - user may have customized)
-    let compose_path = Path::new("docker-compose.yml");
     if compose_path.exists() {
+        let md_path = Path::new("compose.yml.md");
+        fs::write(md_path, &compose_content)
+            .with_context(|| "Failed to write compose.yml.md")?;
         println!(
-            "   {} docker-compose.yml exists, skipping (use --force to overwrite)",
-            "⏭️".yellow()
+            "   {} compose.yml exists → wrote compose.yml.md for comparison",
+            "📄".yellow()
         );
     } else {
-        let compose_content = engine.render_docker_compose(manifest)?;
-        write_with_backup(compose_path, &compose_content)?;
+        fs::write(compose_path, &compose_content)
+            .with_context(|| "Failed to write compose.yml")?;
     }
 
     Ok(())
