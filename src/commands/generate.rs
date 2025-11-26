@@ -46,6 +46,50 @@ fn write_with_backup(path: &Path, content: &str) -> Result<()> {
     Ok(())
 }
 
+/// Preview what files would be generated (dry-run mode)
+pub fn preview_from_manifest(manifest: &Manifest) -> Result<()> {
+    use std::path::Path;
+
+    println!("{}", "📋 Files that would be generated:".bright_yellow());
+    println!();
+
+    // Check existing files vs new files
+    let files_to_check = vec![
+        ("package.json", true),
+        ("Dockerfile", true),
+        ("compose.yml", true),
+        ("pnpm-workspace.yaml", !manifest.packages.workspaces.is_empty()),
+        (".github/workflows/ci.yml", manifest.ci.enabled),
+        (".github/workflows/release.yml", manifest.ci.enabled),
+    ];
+
+    for (file, should_generate) in files_to_check {
+        if !should_generate {
+            continue;
+        }
+
+        let path = Path::new(file);
+        let status = if path.exists() {
+            "exists → would write .md for comparison".yellow()
+        } else {
+            "would be created".green()
+        };
+        println!("   {} {}", file, status);
+    }
+
+    // Show project info
+    println!();
+    println!("{}", "📦 Project info from manifest.toml:".bright_blue());
+    println!("   Name: {}", manifest.project.id);
+    if !manifest.project.description.is_empty() {
+        println!("   Description: {}", manifest.project.description);
+    }
+    println!("   CI enabled: {}", manifest.ci.enabled);
+    println!("   Workspaces: {:?}", manifest.packages.workspaces);
+
+    Ok(())
+}
+
 /// Sync justfile/docker-compose/package.json from manifest.toml contents
 pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     // Resolve catalog versions from npm registry

@@ -183,6 +183,9 @@ fn validate_manifest(manifest: &Manifest) {
 
 /// Initialize or optimize manifest-driven workspace files
 ///
+/// DRY-RUN BY DEFAULT: Shows what would be generated without writing files.
+/// Use `--write` to actually generate files.
+///
 /// READ-ONLY MODE: manifest.toml → generated files
 /// - Reads manifest.toml (source of truth)
 /// - Generates workspace files (package.json, pnpm-workspace.yaml, workflows, etc.)
@@ -198,7 +201,7 @@ fn validate_manifest(manifest: &Manifest) {
 /// - Default: auto-snapshot on first run (when .airis/snapshots.toml doesn't exist)
 /// - --snapshot: force snapshot capture
 /// - --no-snapshot: skip snapshot (for CI or repeated runs)
-pub fn run(force_snapshot: bool, no_snapshot: bool) -> Result<()> {
+pub fn run(force_snapshot: bool, no_snapshot: bool, write: bool) -> Result<()> {
     let manifest_path = Path::new(MANIFEST_FILE);
     let current_dir = env::current_dir()?;
 
@@ -271,28 +274,40 @@ pub fn run(force_snapshot: bool, no_snapshot: bool) -> Result<()> {
         sync_cargo_version_from_git_tag()?;
     }
 
-    println!("{}", "🧩 Regenerating workspace files from manifest.toml...".bright_blue());
-    generate::sync_from_manifest(&manifest)?;
+    if write {
+        println!("{}", "🧩 Regenerating workspace files from manifest.toml...".bright_blue());
+        generate::sync_from_manifest(&manifest)?;
 
-    // Install guards if defined in manifest
-    if !manifest.guards.deny.is_empty()
-        || !manifest.guards.wrap.is_empty()
-        || !manifest.guards.deny_with_message.is_empty()
-    {
+        // Install guards if defined in manifest
+        if !manifest.guards.deny.is_empty()
+            || !manifest.guards.wrap.is_empty()
+            || !manifest.guards.deny_with_message.is_empty()
+        {
+            println!();
+            guards::install()?;
+
+            // Generate .envrc for direnv auto-activation
+            generate_envrc()?;
+        }
+
         println!();
-        guards::install()?;
+        println!("{}", "✅ Workspace files generated from manifest.toml".green());
+        println!("{}", "Next steps:".bright_yellow());
+        println!("  1. Edit manifest.toml to add/remove apps, libs, or catalog entries");
+        println!("  2. Run `airis init --write` to regenerate workspace files");
+        println!("  3. Use `/airis:init` (Claude Code) to sync filesystem → manifest.toml");
+        println!("  4. Run `airis up` to start development");
+    } else {
+        // DRY-RUN MODE: Show what would be generated
+        println!("{}", "🔍 Dry-run mode: showing what would be generated...".bright_blue());
+        println!();
+        generate::preview_from_manifest(&manifest)?;
 
-        // Generate .envrc for direnv auto-activation
-        generate_envrc()?;
+        println!();
+        println!("{}", "ℹ️  No files were written (dry-run mode)".yellow());
+        println!("{}", "To actually generate files, run:".bright_yellow());
+        println!("  airis init --write");
     }
-
-    println!();
-    println!("{}", "✅ Workspace files generated from manifest.toml".green());
-    println!("{}", "Next steps:".bright_yellow());
-    println!("  1. Edit manifest.toml to add/remove apps, libs, or catalog entries");
-    println!("  2. Run `airis init` to regenerate workspace files from manifest");
-    println!("  3. Use `/airis:init` (Claude Code) to sync filesystem → manifest.toml");
-    println!("  4. Run `airis up` to start development");
 
     Ok(())
 }

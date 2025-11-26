@@ -46,6 +46,9 @@ enum Commands {
         /// Setup .npmrc symlinks for Docker-First enforcement
         #[arg(long)]
         setup_npmrc: bool,
+        /// Actually write generated files (default: dry-run, shows what would be generated)
+        #[arg(long)]
+        write: bool,
     },
 
     /// Query MANIFEST.toml data (used by justfile)
@@ -378,8 +381,8 @@ fn main() -> Result<()> {
     });
 
     match command {
-        Commands::Init { snapshot, no_snapshot, setup_npmrc } => {
-            commands::init::run(snapshot, no_snapshot)?;
+        Commands::Init { snapshot, no_snapshot, setup_npmrc, write } => {
+            commands::init::run(snapshot, no_snapshot, write)?;
             if setup_npmrc {
                 commands::init::setup_npmrc()?;
             }
