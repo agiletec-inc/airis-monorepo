@@ -178,15 +178,29 @@ fn resolve_catalog_versions(
 }
 
 fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
-    // Generate Dockerfile.dev in root
+    // Generate Dockerfile.dev in root (skip if exists - user may have customized)
     let dockerfile_path = Path::new("Dockerfile.dev");
-    let dockerfile_content = engine.render_dockerfile_dev(manifest)?;
-    write_with_backup(dockerfile_path, &dockerfile_content)?;
+    if dockerfile_path.exists() {
+        println!(
+            "   {} Dockerfile.dev exists, skipping (use --force to overwrite)",
+            "⏭️".yellow()
+        );
+    } else {
+        let dockerfile_content = engine.render_dockerfile_dev(manifest)?;
+        write_with_backup(dockerfile_path, &dockerfile_content)?;
+    }
 
-    // Generate docker-compose.yml in root
+    // Generate docker-compose.yml in root (skip if exists - user may have customized)
     let compose_path = Path::new("docker-compose.yml");
-    let compose_content = engine.render_docker_compose(manifest)?;
-    write_with_backup(compose_path, &compose_content)?;
+    if compose_path.exists() {
+        println!(
+            "   {} docker-compose.yml exists, skipping (use --force to overwrite)",
+            "⏭️".yellow()
+        );
+    } else {
+        let compose_content = engine.render_docker_compose(manifest)?;
+        write_with_backup(compose_path, &compose_content)?;
+    }
 
     Ok(())
 }
