@@ -219,6 +219,10 @@ impl Manifest {
                     service: "workspace".to_string(),
                     volumes: vec!["node_modules".to_string()],
                 }),
+                compose: default_compose_file(),
+                service: default_workspace_service(),
+                routes: vec![],
+                shim_commands: default_shim_commands(),
             },
             just: None,
             service: IndexMap::new(),
@@ -652,6 +656,49 @@ pub struct DockerSection {
     pub workdir: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workspace: Option<DockerWorkspaceSection>,
+    /// Compose file path (default: compose.yml)
+    #[serde(default = "default_compose_file")]
+    pub compose: String,
+    /// Default service for command execution
+    #[serde(default = "default_workspace_service")]
+    pub service: String,
+    /// Command routing rules (glob pattern → service/workdir)
+    #[serde(default)]
+    pub routes: Vec<DockerRoute>,
+    /// Commands to shim (default: pnpm, npm, node, npx, bun, tsx, next, eslint, vitest, etc.)
+    #[serde(default = "default_shim_commands")]
+    pub shim_commands: Vec<String>,
+}
+
+fn default_compose_file() -> String {
+    "compose.yml".to_string()
+}
+
+fn default_shim_commands() -> Vec<String> {
+    vec![
+        "pnpm".to_string(),
+        "npm".to_string(),
+        "node".to_string(),
+        "npx".to_string(),
+        "bun".to_string(),
+        "tsx".to_string(),
+        "next".to_string(),
+        "eslint".to_string(),
+        "vitest".to_string(),
+        "tsc".to_string(),
+        "turbo".to_string(),
+    ]
+}
+
+/// Route configuration for Docker command execution
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DockerRoute {
+    /// Glob pattern to match (e.g., "apps/*", "packages/*")
+    pub glob: String,
+    /// Service to execute in
+    pub service: String,
+    /// Working directory template (supports {match} placeholder)
+    pub workdir: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

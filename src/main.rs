@@ -69,6 +69,12 @@ enum Commands {
         action: HooksCommands,
     },
 
+    /// Docker-First shim management (intercept commands → Docker)
+    Shim {
+        #[command(subcommand)]
+        action: ShimCommands,
+    },
+
     /// Documentation management (CLAUDE.md, .cursorrules, etc.)
     Docs {
         #[command(subcommand)]
@@ -246,6 +252,24 @@ enum HooksCommands {
 }
 
 #[derive(Subcommand)]
+enum ShimCommands {
+    /// Install shims in ./bin (pnpm, npm, node, etc. → Docker)
+    Install,
+    /// List installed shims
+    List,
+    /// Remove all shims
+    Uninstall,
+    /// Execute a command through Docker (manual shim)
+    Exec {
+        /// Command to execute
+        cmd: String,
+        /// Arguments to pass
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
 enum DocsCommands {
     /// Wrap a documentation file to point to manifest.toml
     Wrap {
@@ -404,6 +428,12 @@ fn main() -> Result<()> {
         },
         Commands::Hooks { action } => match action {
             HooksCommands::Install => commands::hooks::install()?,
+        },
+        Commands::Shim { action } => match action {
+            ShimCommands::Install => commands::shim::install()?,
+            ShimCommands::List => commands::shim::list()?,
+            ShimCommands::Uninstall => commands::shim::uninstall()?,
+            ShimCommands::Exec { cmd, args } => commands::shim::exec(&cmd, &args)?,
         },
         Commands::Docs { action } => match action {
             DocsCommands::Wrap { target } => commands::docs::wrap(&target)?,

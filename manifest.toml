@@ -46,30 +46,8 @@ autostart = [
     "focustoday-web",
 ]
 
-[apps.corporate-site]
-path = "apps/corporate-site"
-type = "nextjs"
-
-[apps.airis-dashboard]
-path = "apps/airis-dashboard"
-type = "nextjs"
-
-[apps.airis-auto-call]
-path = "apps/airis-auto-call"
-type = "nextjs"
-
-[apps.focustoday-web]
-path = "apps/focustoday-web"
-type = "nextjs"
-
-[libs.ui]
-path = "libs/ui"
-
-[libs.env-config]
-path = "libs/env-config"
-
-[libs.security]
-path = "libs/security"
+# REMOVED: [apps.*], [libs.*] - pnpm workspace auto-detects from apps/*, libs/*
+# Use MCP /airis:init for scaffolding new apps/libs
 
 [docker]
 baseImage = "node:24-bookworm"
@@ -190,27 +168,7 @@ danger = [
 
 [guards.deny_with_message]
 
-[[app]]
-name = "corporate-site"
-kind = "app"
-path = "apps/corporate-site"
-framework = "react-vite"
-
-[app.scripts]
-dev = "vite dev"
-build = "vite build"
-lint = "eslint ."
-test = "vitest"
-
-[app.deps]
-react = "catalog"
-react-dom = "catalog"
-
-[app.dev_deps]
-typescript = "catalog"
-vite = "catalog"
-vitest = "catalog"
-eslint = "catalog"
+# REMOVED: [[app]] - use MCP /airis:init for scaffolding
 
 [orchestration.dev]
 workspace = "workspace/docker-compose.yml"
