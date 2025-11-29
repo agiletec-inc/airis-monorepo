@@ -117,8 +117,8 @@ fn visit_package(
     visiting.insert(package.to_string());
 
     // If this package follows another, visit that first
-    if let Some(entry) = catalog.get(package) {
-        if let Some(target) = entry.follow_target() {
+    if let Some(entry) = catalog.get(package)
+        && let Some(target) = entry.follow_target() {
             if !catalog.contains_key(target) {
                 anyhow::bail!(
                     "Cannot resolve '{}': follow target '{}' not found in [packages.catalog]",
@@ -128,7 +128,6 @@ fn visit_package(
             }
             visit_package(target, catalog, visited, visiting, order)?;
         }
-    }
 
     visiting.remove(package);
     visited.insert(package.to_string());
@@ -155,7 +154,7 @@ pub fn resolve_version(package: &str, policy: &str) -> Result<String> {
 
 pub fn get_npm_latest(package: &str) -> Result<String> {
     let output = Command::new("npm")
-        .args(&["view", package, "version"])
+        .args(["view", package, "version"])
         .output()
         .context(format!("Failed to query npm for {}", package))?;
 
@@ -280,8 +279,8 @@ pub fn run_migrate() -> Result<()> {
 
         // Process dependencies
         for dep_type in &["dependencies", "devDependencies", "peerDependencies"] {
-            if let Some(deps) = pkg.get_mut(*dep_type) {
-                if let Some(deps_obj) = deps.as_object_mut() {
+            if let Some(deps) = pkg.get_mut(*dep_type)
+                && let Some(deps_obj) = deps.as_object_mut() {
                     for (name, version) in deps_obj.iter_mut() {
                         // Check if this package is in catalog
                         if catalog.contains_key(name) {
@@ -299,7 +298,6 @@ pub fn run_migrate() -> Result<()> {
                         }
                     }
                 }
-            }
         }
 
         if changed {

@@ -98,29 +98,26 @@ fn build_dependency_graph() -> Result<HashMap<String, Vec<String>>> {
         if let Ok(entries) = fs::read_dir(dir_path) {
             for entry in entries.flatten() {
                 let pkg_json = entry.path().join("package.json");
-                if pkg_json.exists() {
-                    if let Ok((name, deps)) = parse_package_json(&pkg_json) {
+                if pkg_json.exists()
+                    && let Ok((name, deps)) = parse_package_json(&pkg_json) {
                         graph.insert(name, deps);
                     }
-                }
             }
         }
     }
 
     // Also check nested libs (e.g., libs/supabase/*)
     let nested_libs = Path::new("libs/supabase");
-    if nested_libs.exists() {
-        if let Ok(entries) = fs::read_dir(nested_libs) {
+    if nested_libs.exists()
+        && let Ok(entries) = fs::read_dir(nested_libs) {
             for entry in entries.flatten() {
                 let pkg_json = entry.path().join("package.json");
-                if pkg_json.exists() {
-                    if let Ok((name, deps)) = parse_package_json(&pkg_json) {
+                if pkg_json.exists()
+                    && let Ok((name, deps)) = parse_package_json(&pkg_json) {
                         graph.insert(name, deps);
                     }
-                }
             }
         }
-    }
 
     Ok(graph)
 }
@@ -170,38 +167,32 @@ fn get_package_from_path(file_path: &str) -> Option<String> {
                 let pkg_name = parts[1];
                 // Try to read the actual package name from package.json
                 let pkg_json = format!("{}/{}/package.json", parts[0], pkg_name);
-                if let Ok(content) = fs::read_to_string(&pkg_json) {
-                    if let Ok(json) = serde_json::from_str::<Value>(&content) {
-                        if let Some(name) = json["name"].as_str() {
+                if let Ok(content) = fs::read_to_string(&pkg_json)
+                    && let Ok(json) = serde_json::from_str::<Value>(&content)
+                        && let Some(name) = json["name"].as_str() {
                             return Some(name.to_string());
                         }
-                    }
-                }
                 Some(format!("@workspace/{}", pkg_name))
             }
             "libs" => {
                 if parts.len() >= 3 && parts[1] == "supabase" {
                     // libs/supabase/client/... → check package.json
                     let pkg_json = format!("libs/supabase/{}/package.json", parts[2]);
-                    if let Ok(content) = fs::read_to_string(&pkg_json) {
-                        if let Ok(json) = serde_json::from_str::<Value>(&content) {
-                            if let Some(name) = json["name"].as_str() {
+                    if let Ok(content) = fs::read_to_string(&pkg_json)
+                        && let Ok(json) = serde_json::from_str::<Value>(&content)
+                            && let Some(name) = json["name"].as_str() {
                                 return Some(name.to_string());
                             }
-                        }
-                    }
                     Some(format!("@workspace/{}", parts[2]))
                 } else {
                     // libs/ui/... → @workspace/ui
                     let pkg_name = parts[1];
                     let pkg_json = format!("libs/{}/package.json", pkg_name);
-                    if let Ok(content) = fs::read_to_string(&pkg_json) {
-                        if let Ok(json) = serde_json::from_str::<Value>(&content) {
-                            if let Some(name) = json["name"].as_str() {
+                    if let Ok(content) = fs::read_to_string(&pkg_json)
+                        && let Ok(json) = serde_json::from_str::<Value>(&content)
+                            && let Some(name) = json["name"].as_str() {
                                 return Some(name.to_string());
                             }
-                        }
-                    }
                     Some(format!("@workspace/{}", pkg_name))
                 }
             }

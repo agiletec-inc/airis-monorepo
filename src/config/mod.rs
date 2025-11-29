@@ -33,17 +33,14 @@ fn default_package_manager() -> String {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum Mode {
+    #[default]
     DockerFirst,
     Hybrid,
     Strict,
 }
 
-impl Default for Mode {
-    fn default() -> Self {
-        Mode::DockerFirst
-    }
-}
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Workspaces {

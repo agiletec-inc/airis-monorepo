@@ -157,7 +157,7 @@ impl TemplateEngine {
 
         // Convert project_id to PascalCase for Ruby class name (Formula name = project_id)
         let formula_class = manifest.project.id
-            .split(|c: char| c == '-' || c == '_')
+            .split(['-', '_'])
             .map(|s| {
                 let mut chars = s.chars();
                 match chars.next() {

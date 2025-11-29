@@ -131,13 +131,13 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     let engine = TemplateEngine::new()?;
     println!("{}", "🧩 Rendering templates...".bright_blue());
-    generate_docker_compose(&manifest, &engine)?;
-    generate_package_json(&manifest, &engine, &resolved_catalog)?;
+    generate_docker_compose(manifest, &engine)?;
+    generate_package_json(manifest, &engine, &resolved_catalog)?;
 
     // Generate minimal pnpm-workspace.yaml for pnpm compatibility
     // (npm/yarn/bun use workspaces from package.json)
     if !manifest.packages.workspaces.is_empty() {
-        generate_pnpm_workspace(&manifest, &engine)?;
+        generate_pnpm_workspace(manifest, &engine)?;
     }
 
     // Check if this is a Rust project (for CI workflow detection)
@@ -149,7 +149,7 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     // Generate GitHub Actions workflows if CI is enabled
     if manifest.ci.enabled {
-        generate_github_workflows(&manifest, &engine)?;
+        generate_github_workflows(manifest, &engine)?;
     }
 
     // Generate individual app package.json files

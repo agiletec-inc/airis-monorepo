@@ -48,17 +48,17 @@ pub fn get_ownership(path: &Path) -> Ownership {
             // Pattern matches
             if path_str.starts_with(".github/workflows/") {
                 Ownership::Tool
-            } else if path_str.starts_with("apps/") && path_str.ends_with("/package.json") {
-                Ownership::Hybrid
-            } else if path_str.starts_with("libs/") && path_str.ends_with("/package.json") {
+            } else if (path_str.starts_with("apps/") || path_str.starts_with("libs/"))
+                && path_str.ends_with("/package.json")
+            {
                 Ownership::Hybrid
             } else if path_str.starts_with("workspace/") {
                 // workspace/ configs are user-owned for now
                 // Future: could be tool-owned when docker-compose generation is added
                 Ownership::User
-            } else if path_str.starts_with("traefik/") {
-                Ownership::User
-            } else if path_str.starts_with("types/") {
+            } else if path_str.starts_with("traefik/")
+                || path_str.starts_with("types/")
+            {
                 Ownership::User
             } else if path_str.starts_with(".airis/") {
                 // .airis internal files are tool-owned

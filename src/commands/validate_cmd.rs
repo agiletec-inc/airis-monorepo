@@ -162,12 +162,11 @@ fn validate_networks() -> Result<()> {
         }
 
         // Check for traefik.docker.network label
-        if content.contains("traefik.enable=true") {
-            if !content.contains("traefik.docker.network=") {
+        if content.contains("traefik.enable=true")
+            && !content.contains("traefik.docker.network=") {
                 println!("  {} {}: Traefik-enabled services need traefik.docker.network label", "❌".red(), project);
                 failures += 1;
             }
-        }
     }
 
     if failures > 0 {
@@ -244,11 +243,10 @@ fn check_env_file(path: &Path, allowed: &[&str], disallowed: &mut Vec<String>) -
             let key = key.trim();
 
             // Check if it's a public key
-            if key.starts_with("NEXT_PUBLIC_") || key.starts_with("EXPO_PUBLIC_") {
-                if !allowed.contains(&key) {
+            if (key.starts_with("NEXT_PUBLIC_") || key.starts_with("EXPO_PUBLIC_"))
+                && !allowed.contains(&key) {
                     disallowed.push(format!("{}: {}", path.display(), key));
                 }
-            }
         }
     }
 
@@ -270,7 +268,7 @@ fn validate_dependencies() -> Result<()> {
 
     // Check if dependency-cruiser is installed
     let check = Command::new("npx")
-        .args(&["dependency-cruiser", "--version"])
+        .args(["dependency-cruiser", "--version"])
         .output();
 
     if check.is_err() {
@@ -282,7 +280,7 @@ fn validate_dependencies() -> Result<()> {
     // Run dependency-cruiser
     println!("  {} Running dependency-cruiser...", "⚙️".dimmed());
     let status = Command::new("npx")
-        .args(&[
+        .args([
             "dependency-cruiser",
             "--config",
             "tools/dependency-cruiser.cjs",

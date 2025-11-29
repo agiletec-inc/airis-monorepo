@@ -148,12 +148,11 @@ pub fn check_docker() -> Result<()> {
     }
 
     // Check /proc/1/cgroup for Docker
-    if let Ok(content) = fs::read_to_string("/proc/1/cgroup") {
-        if content.contains("docker") || content.contains("containerd") {
+    if let Ok(content) = fs::read_to_string("/proc/1/cgroup")
+        && (content.contains("docker") || content.contains("containerd")) {
             println!("{}", "✅ Running inside Docker container (cgroup detected)".green());
             return Ok(());
         }
-    }
 
     // Check for CI environment
     if std::env::var("CI").unwrap_or_default() == "true"

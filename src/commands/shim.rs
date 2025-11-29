@@ -250,8 +250,8 @@ fn find_route(manifest: &Manifest, rel_path: &Path) -> (String, String) {
     let rel_str = rel_path.to_string_lossy();
 
     for route in &manifest.docker.routes {
-        if let Ok(pattern) = Pattern::new(&route.glob) {
-            if pattern.matches(&rel_str) {
+        if let Ok(pattern) = Pattern::new(&route.glob)
+            && pattern.matches(&rel_str) {
                 // Extract match for {match} placeholder
                 let match_str = rel_path
                     .components()
@@ -262,7 +262,6 @@ fn find_route(manifest: &Manifest, rel_path: &Path) -> (String, String) {
                 let workdir = route.workdir.replace("{match}", &match_str);
                 return (route.service.clone(), workdir);
             }
-        }
     }
 
     // Default

@@ -23,7 +23,7 @@ pub fn run(host: &str, port: &str, database: &str, output: &str) -> Result<()> {
     // Check if Supabase is running
     println!("   {} Checking if Supabase is running...", "🔍".dimmed());
     let pg_ready = Command::new("docker")
-        .args(&[
+        .args([
             "compose",
             "-f",
             "supabase/docker-compose.yml",
@@ -53,7 +53,7 @@ pub fn run(host: &str, port: &str, database: &str, output: &str) -> Result<()> {
     println!("   {} Generating types with Supabase CLI...", "⚙️".dimmed());
 
     let status = Command::new("npx")
-        .args(&[
+        .args([
             "supabase",
             "gen",
             "types",

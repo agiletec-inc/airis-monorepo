@@ -372,27 +372,21 @@ fn default_workspace_name() -> String {
     if let Ok(output) = std::process::Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .output()
-    {
-        if output.status.success() {
-            if let Ok(path_str) = String::from_utf8(output.stdout) {
+        && output.status.success()
+            && let Ok(path_str) = String::from_utf8(output.stdout) {
                 let path = std::path::Path::new(path_str.trim());
-                if let Some(name) = path.file_name() {
-                    if let Some(name_str) = name.to_str() {
+                if let Some(name) = path.file_name()
+                    && let Some(name_str) = name.to_str() {
                         return name_str.to_string();
                     }
-                }
             }
-        }
-    }
 
     // Fallback: use current directory name
-    if let Ok(cwd) = std::env::current_dir() {
-        if let Some(name) = cwd.file_name() {
-            if let Some(name_str) = name.to_str() {
+    if let Ok(cwd) = std::env::current_dir()
+        && let Some(name) = cwd.file_name()
+            && let Some(name_str) = name.to_str() {
                 return name_str.to_string();
             }
-        }
-    }
 
     "workspace".to_string()
 }
@@ -945,6 +939,7 @@ pub struct TemplatesSection {
 
 /// Template configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Default)]
 pub struct TemplateConfig {
     /// Entry point file (e.g., "src/index.ts", "src/main.rs")
     #[serde(default)]
@@ -969,19 +964,6 @@ pub struct TemplateConfig {
     pub package_config: String,
 }
 
-impl Default for TemplateConfig {
-    fn default() -> Self {
-        TemplateConfig {
-            entry: String::new(),
-            dockerfile: String::new(),
-            runtime: String::new(),
-            deps: Vec::new(),
-            dev_deps: Vec::new(),
-            inject: Vec::new(),
-            package_config: String::new(),
-        }
-    }
-}
 
 /// Runtime aliases configuration
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]

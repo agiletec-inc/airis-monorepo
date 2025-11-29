@@ -50,9 +50,8 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
         let path = Path::new(file);
         if !path.exists() {
             eprintln!(
-                "{}\n{}\n\n{}\n",
+                "{}\n\n\n{}\n",
                 format!("❌ Docker Compose file not found: {}", file).red().bold(),
-                "",
                 "💡 Tip: Check your manifest.toml [dev] section or ensure the file exists.".yellow()
             );
             return Ok(false);
@@ -95,16 +94,16 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
             );
             return Ok(false);
         }
-        if output.status.success() {
-            if let Ok(config) = serde_json::from_slice::<Value>(&output.stdout) {
-                if let Some(services) = config.get("services").and_then(|s| s.as_object()) {
+        if output.status.success()
+            && let Ok(config) = serde_json::from_slice::<Value>(&output.stdout)
+                && let Some(services) = config.get("services").and_then(|s| s.as_object()) {
                     let mut not_running = Vec::new();
 
                     for service in services.values() {
                         if let Some(container_name) = service.get("container_name").and_then(|c| c.as_str()) {
                             // Check if container is running
                             let inspect = Command::new("docker")
-                                .args(&["inspect", "-f", "{{.State.Running}}", container_name])
+                                .args(["inspect", "-f", "{{.State.Running}}", container_name])
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::null())
                                 .output();
@@ -130,8 +129,6 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
                         println!("     {} containers already running; refreshing...", "✓".dimmed());
                     }
                 }
-            }
-        }
     }
 
     // Execute docker compose up -d --remove-orphans
@@ -143,7 +140,7 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .with_context(|| format!("Failed to execute docker compose up"))?;
+        .with_context(|| "Failed to execute docker compose up".to_string())?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -156,6 +153,7 @@ fn smart_compose_up(project: Option<&str>, compose_files: &[&str]) -> Result<boo
 }
 
 /// Extract published ports from a docker-compose file
+#[allow(dead_code)]
 fn get_compose_ports(compose_file: &str) -> Vec<(String, String, u16)> {
     let output = Command::new("docker")
         .args(["compose", "-f", compose_file, "config", "--format", "json"])
@@ -165,10 +163,10 @@ fn get_compose_ports(compose_file: &str) -> Vec<(String, String, u16)> {
 
     let mut results = Vec::new();
 
-    if let Ok(output) = output {
-        if output.status.success() {
-            if let Ok(config) = serde_json::from_slice::<Value>(&output.stdout) {
-                if let Some(services) = config.get("services").and_then(|s| s.as_object()) {
+    if let Ok(output) = output
+        && output.status.success()
+            && let Ok(config) = serde_json::from_slice::<Value>(&output.stdout)
+                && let Some(services) = config.get("services").and_then(|s| s.as_object()) {
                     for (service_name, service) in services {
                         // Get container_name or use service name
                         let display_name = service
@@ -183,13 +181,12 @@ fn get_compose_ports(compose_file: &str) -> Vec<(String, String, u16)> {
                                 // Port can be string "8080:80" or object {target: 80, published: 8080}
                                 if let Some(port_str) = port.as_str() {
                                     // Parse "host:container" or just "container"
-                                    if let Some((host, _)) = port_str.split_once(':') {
-                                        if let Ok(p) = host.parse::<u16>() {
+                                    if let Some((host, _)) = port_str.split_once(':')
+                                        && let Ok(p) = host.parse::<u16>() {
                                             results.push((service_name.clone(), display_name.clone(), p));
                                         }
-                                    }
-                                } else if let Some(obj) = port.as_object() {
-                                    if let Some(published) = obj.get("published") {
+                                } else if let Some(obj) = port.as_object()
+                                    && let Some(published) = obj.get("published") {
                                         let p = if let Some(p) = published.as_u64() {
                                             p as u16
                                         } else if let Some(s) = published.as_str() {
@@ -201,7 +198,6 @@ fn get_compose_ports(compose_file: &str) -> Vec<(String, String, u16)> {
                                             results.push((service_name.clone(), display_name.clone(), p));
                                         }
                                     }
-                                }
                             }
                         }
 
@@ -209,9 +205,6 @@ fn get_compose_ports(compose_file: &str) -> Vec<(String, String, u16)> {
                         // They are accessible via the Traefik proxy
                     }
                 }
-            }
-        }
-    }
 
     results
 }
@@ -232,14 +225,13 @@ fn get_running_containers() -> Vec<String> {
         .stderr(Stdio::null())
         .output();
 
-    if let Ok(output) = output {
-        if output.status.success() {
+    if let Ok(output) = output
+        && output.status.success() {
             return String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .map(|s| s.to_string())
                 .collect();
         }
-    }
     Vec::new()
 }
 
@@ -415,8 +407,8 @@ fn get_docker_traefik_routers(workspace_name: &str) -> Vec<(String, String, Stri
             .stderr(Stdio::null())
             .output();
 
-        if let Ok(output) = output {
-            if let Ok(labels) = serde_json::from_slice::<serde_json::Map<String, Value>>(&output.stdout) {
+        if let Ok(output) = output
+            && let Ok(labels) = serde_json::from_slice::<serde_json::Map<String, Value>>(&output.stdout) {
                 // Check if traefik is enabled
                 let traefik_enabled = labels
                     .get("traefik.enable")
@@ -472,7 +464,6 @@ fn get_docker_traefik_routers(workspace_name: &str) -> Vec<(String, String, Stri
                     }
                 }
             }
-        }
     }
 
     results
