@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `package.json`, and `pnpm-workspace.yaml` from a single `manifest.toml`. `workspace.yaml` is generated metadata, not the user-editable manifest.
+**AIris Workspace** is a Docker-first monorepo workspace manager built in Rust. It enforces Docker-first development by auto-generating `package.json`, `pnpm-workspace.yaml`, and `docker-compose.yml` from a single `manifest.toml`.
 
 **Core Philosophy**: Prevent host pollution by blocking direct `pnpm`/`npm`/`yarn` execution and forcing Docker-first workflow via `airis` CLI commands. Special exception for Rust projects (local builds for GPU support).
 
-**Current Version**: v1.1.0
+**Current Version**: v1.32.0
 - v1.0.2: Command unification (`[commands]`, `[guards]`, `[remap]`) - justfile now optional
 - v1.1.0: Version automation (`[versioning]`, `airis bump-version`, Git hooks)
+- v1.32.0: Removed workspace.yaml (unused), simplified init command
 
 ## Build & Development Commands
 
@@ -47,39 +48,29 @@ cargo run -- validate
 ### 動作仕様
 
 1. **manifest.toml が存在する場合**
-   - 読み込み専用として扱う
-   - package.json, pnpm-workspace.yaml, workspace.yaml を再生成
+   - 案内メッセージを表示（`airis generate files` を使うよう誘導）
    - manifest.toml 自体は一切書き換えない
 
-2. **manifest.toml が存在しない場合（初回のみ）**
-   - 初回テンプレートを生成
-   - 他のファイルも併せて生成
+2. **manifest.toml が存在しない場合**
+   - デフォルトは dry-run（プレビュー表示）
+   - `--write` オプションでテンプレートを作成
 
 3. **manifest.toml を上書きする機能は存在しない**
    - `--force` フラグは存在しない
    - `--reset` コマンドは存在しない
    - manifest.toml を削除・上書きする手段は CLI に存在しない
 
-### 実装ガード
+### コマンド例
 
-```rust
-pub fn run() -> Result<()> {
-    let manifest_path = Path::new(MANIFEST_FILE);
+```bash
+# manifest.toml がない場合：プレビュー表示
+airis init
 
-    if manifest_path.exists() {
-        // ✅ READ-ONLY MODE: Never modify existing manifest.toml
-        let manifest = Manifest::load(manifest_path)?;
-        Generator::from(&manifest).write_all()?;
-        return Ok(());
-    }
+# manifest.toml がない場合：テンプレート作成
+airis init --write
 
-    // ✅ INITIAL CREATION MODE: Only when manifest.toml doesn't exist
-    let template = Manifest::bootstrap_from_repo()?;
-    template.save(manifest_path)?;
-    Generator::from(&template).write_all()?;
-
-    Ok(())
-}
+# manifest.toml がある場合：ファイル再生成
+airis generate files
 ```
 
 **この仕様に違反する実装は全てバグとして扱う。**
@@ -88,21 +79,17 @@ pub fn run() -> Result<()> {
 
 ### Configuration Flow (manifest.toml → Generated Files)
 
-1. **manifest.toml** (user-editable)
+1. **manifest.toml** (user-editable, Single Source of Truth)
    - Parsed via `toml`
    - Describes dev apps, infra services, lint/test rules, package config (`src/manifest.rs`)
 
-2. **workspace.yaml** (auto-generated metadata)
-   - Derived from manifest.toml for IDE/tooling compatibility (`src/config/mod.rs`)
-
-3. **Template Engine** (`src/templates/mod.rs`)
+2. **Template Engine** (`src/templates/mod.rs`)
    - Uses Handlebars for templating with MANIFEST-driven data
    - Generates `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml`
-   - Optional: `justfile` (if `[just]` section is present)
 
-4. **Generation Pipeline**
-   - `init` command → creates or loads manifest.toml, then triggers template sync (src/commands/init.rs)
-   - `commands::generate` module → helper invoked by `init` that syncs workspace.yaml + templates (src/commands/generate.rs)
+3. **Generation Pipeline**
+   - `init` command → creates manifest.toml template if not exists (src/commands/init.rs)
+   - `generate files` command → regenerates workspace files from manifest.toml (src/commands/generate.rs)
 
 ### Key Design Patterns
 
@@ -143,10 +130,9 @@ pub fn run() -> Result<()> {
 ### Module Responsibilities
 
 - **src/main.rs**: CLI entry point using `clap` derive macros
-- **src/config/mod.rs**: Workspace YAML schema + helpers (generated metadata)
-- **src/manifest.rs**: manifest.toml schema/helpers
-- **src/commands/init.rs**: Creates or reloads manifest.toml, then re-syncs derived files
-- **src/commands/generate.rs**: Helper that syncs workspace.yaml + templates from an in-memory Manifest
+- **src/manifest.rs**: manifest.toml schema/helpers + Mode enum
+- **src/commands/init.rs**: Creates manifest.toml template (if not exists)
+- **src/commands/generate.rs**: Regenerates workspace files from manifest.toml
 - **src/commands/manifest_cmd.rs**: Implements `airis manifest ...` plumbing
 - **src/commands/run.rs**: Executes commands from `[commands]` section (v1.0.2+)
 - **src/commands/bump_version.rs**: Version bumping with Conventional Commits (v1.1.0+)
@@ -170,24 +156,20 @@ pub fn run() -> Result<()> {
 
 ## Configuration Schema Notes
 
-**Mode types** (src/config/mod.rs:30-34):
+**Mode types** (src/manifest.rs):
 - `docker-first`: Default. Allows local builds with explicit `runtime: local`
 - `hybrid`: (not yet implemented)
 - `strict`: (not yet implemented)
-
-**WorkspaceApp variants** (src/config/mod.rs:52-59):
-- `Simple(String)`: App name (type inferred from `apps` section)
-- `Detailed`: Inline type specification
 
 **App runtime resolution**: Keep Docker-first semantics. Runtime overrides (e.g., Rust local builds) should be modeled in MANIFEST extensions rather than reintroducing host-level exceptions elsewhere.
 
 ## Testing Strategy
 
 When adding features:
-1. Add unit tests in `#[cfg(test)]` modules (see examples in config/mod.rs:242-270, commands/generate.rs:92-118, commands/bump_version.rs:154-182)
+1. Add unit tests in `#[cfg(test)]` modules (see examples in commands/generate.rs, commands/bump_version.rs)
 2. Use `tempfile` crate for filesystem tests (already in dev-dependencies)
-3. Test YAML parsing/serialization roundtrips
-4. Verify template rendering produces valid output (valid JSON, TOML)
+3. Test TOML parsing/serialization roundtrips
+4. Verify template rendering produces valid output (valid JSON, TOML, YAML)
 
 ## Future Implementation Notes
 
@@ -249,7 +231,7 @@ airis init
      - Detected apps/libs
      - Detected compose file paths in orchestration.dev
      - Extracted catalog from package.json
-   - Generate workspace.yaml, package.json, etc.
+   - Generate package.json, pnpm-workspace.yaml, docker-compose.yml
   ↓
 4. Verification Phase
    - Show diff/changes

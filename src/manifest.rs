@@ -5,7 +5,15 @@ use anyhow::{Context, Result};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Mode;
+/// Workspace mode (docker-first, hybrid, strict)
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Mode {
+    #[default]
+    DockerFirst,
+    Hybrid,
+    Strict,
+}
 
 pub const MANIFEST_FILE: &str = "manifest.toml";
 

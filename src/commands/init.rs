@@ -5,44 +5,79 @@ use std::path::Path;
 use anyhow::Result;
 use colored::Colorize;
 
-/// DEPRECATED: airis init is now handled by MCP tool /airis:init
-///
-/// The init command has been moved to an MCP-based agent workflow that:
-/// - Analyzes the entire repository structure intelligently
-/// - Understands language/framework specifics (Next.js, Rust, Python, etc.)
-/// - Generates optimized manifest.toml based on actual project needs
-/// - Handles complex monorepo configurations
-///
-/// Use `/airis:init` in Claude Code or your MCP-enabled client instead.
-pub fn run(_force_snapshot: bool, _no_snapshot: bool, _write: bool) -> Result<()> {
-    println!("{}", "⛔ airis init has been deprecated".bright_red());
-    println!();
-    println!(
-        "{}",
-        "This command is now handled by the MCP tool /airis:init".yellow()
-    );
-    println!();
-    println!("{}", "Why?".bright_yellow());
-    println!("  The init process requires intelligent analysis of your repository:");
-    println!("  - Detecting frameworks (Next.js, Hono, Rust, Python, etc.)");
-    println!("  - Understanding monorepo structure and dependencies");
-    println!("  - Generating optimized manifest.toml for your specific setup");
-    println!("  - Handling edge cases that rule-based code can't anticipate");
-    println!();
-    println!("{}", "How to use:".bright_yellow());
-    println!("  1. Open Claude Code (or any MCP-enabled client)");
-    println!("  2. Run: /airis:init");
-    println!("  3. The agent will analyze your repo and generate manifest.toml");
-    println!();
-    println!(
-        "{}",
-        "For simple file regeneration from existing manifest.toml:".bright_yellow()
-    );
-    println!("  airis generate files");
-    println!();
+use crate::manifest::MANIFEST_FILE;
 
-    // Exit with error to indicate this command should not be used
-    std::process::exit(1);
+/// Default manifest.toml template (embedded at compile time)
+const MANIFEST_TEMPLATE: &str = include_str!("../../examples/manifest.toml");
+
+/// Initialize a new airis workspace
+///
+/// If manifest.toml doesn't exist, creates it from template.
+/// If manifest.toml exists, shows guidance for next steps.
+pub fn run(_force_snapshot: bool, _no_snapshot: bool, write: bool) -> Result<()> {
+    let manifest_path = Path::new(MANIFEST_FILE);
+
+    if manifest_path.exists() {
+        // manifest.toml already exists - show guidance
+        println!(
+            "{} {} already exists",
+            "✓".green(),
+            MANIFEST_FILE.bright_cyan()
+        );
+        println!();
+        println!("{}", "Next steps:".bright_yellow());
+        println!("  1. Edit {} to configure your workspace", MANIFEST_FILE);
+        println!("  2. Run {} to generate workspace files", "airis generate files".bright_cyan());
+        println!();
+        println!("{}", "Or use Claude Code for intelligent configuration:".bright_yellow());
+        println!("  Ask Claude to analyze your repo and update manifest.toml");
+        return Ok(());
+    }
+
+    // manifest.toml doesn't exist - create from template
+    if write {
+        fs::write(manifest_path, MANIFEST_TEMPLATE)?;
+        println!(
+            "{} Created {}",
+            "✓".green(),
+            MANIFEST_FILE.bright_cyan()
+        );
+        println!();
+        println!("{}", "Next steps:".bright_yellow());
+        println!("  1. Edit {} to configure your workspace:", MANIFEST_FILE);
+        println!("     - Set [workspace].name to your project name");
+        println!("     - Add your apps under [apps.*]");
+        println!("     - Add your libs under [libs.*]");
+        println!("     - Configure [packages.catalog] for shared dependencies");
+        println!();
+        println!("  2. Run {} to generate workspace files", "airis generate files".bright_cyan());
+        println!();
+        println!("{}", "Pro tip:".bright_yellow());
+        println!("  Use Claude Code to intelligently configure manifest.toml");
+        println!("  based on your existing project structure.");
+    } else {
+        // Dry-run mode - show what would be created
+        println!(
+            "{} Would create {}",
+            "→".bright_blue(),
+            MANIFEST_FILE.bright_cyan()
+        );
+        println!();
+        println!("{}", "Preview (first 50 lines):".bright_yellow());
+        println!("{}", "─".repeat(60));
+        for line in MANIFEST_TEMPLATE.lines().take(50) {
+            println!("{}", line);
+        }
+        println!("{}", "─".repeat(60));
+        println!("... ({} more lines)", MANIFEST_TEMPLATE.lines().count() - 50);
+        println!();
+        println!(
+            "Run {} to actually create the file",
+            "airis init --write".bright_cyan()
+        );
+    }
+
+    Ok(())
 }
 
 /// Setup .npmrc symlinks for Docker-First enforcement
