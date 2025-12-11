@@ -344,7 +344,9 @@ cargo install --path .
 
 ```bash
 mkdir my-monorepo && cd my-monorepo
-airis init          # Creates manifest.toml + resolves versions + generates all files
+airis init --write  # Creates manifest.toml template
+# Edit manifest.toml to configure your workspace
+airis generate files  # Generates package.json, pnpm-workspace.yaml, docker-compose.yml
 airis up            # Start Docker services
 ```
 
@@ -352,18 +354,22 @@ airis up            # Start Docker services
 
 ```bash
 cd your-existing-monorepo
-airis init          # Auto-detects apps/libs/compose files, generates manifest.toml
-                    # Resolves catalog versions and generates all derived files
+airis init --write  # Creates manifest.toml template (or shows guidance if exists)
+# Edit manifest.toml to match your project structure
+airis generate files  # Generates all workspace files
 airis up            # Start everything
 ```
 
 **What `airis init` does**:
-1. Scans `apps/` and `libs/` directories (for existing projects)
-2. Detects docker-compose.yml locations
-3. Generates `manifest.toml` with detected configuration (first run only)
-4. Resolves catalog version policies ("latest" → "^19.2.0") from npm registry
-5. Generates package.json, pnpm-workspace.yaml, justfile with resolved versions
-6. **Never overwrites existing manifest.toml** (read-only after creation)
+1. If manifest.toml doesn't exist: shows template preview (dry-run by default)
+2. With `--write`: creates manifest.toml from template
+3. If manifest.toml exists: shows guidance for next steps
+4. **Never overwrites existing manifest.toml**
+
+**What `airis generate files` does**:
+1. Reads manifest.toml
+2. Resolves catalog version policies ("latest" → "^19.2.0") from npm registry
+3. Generates package.json, pnpm-workspace.yaml, docker-compose.yml
 
 **New in v1.0.2**: All operations now via `airis` commands. No `just` dependency required.
 
@@ -511,7 +517,9 @@ git commit -m "feat: add dark mode support"
 
 ### Workspace Management
 ```bash
-airis init              # Create or re-sync derived files from manifest.toml
+airis init              # Create manifest.toml template (dry-run by default)
+airis init --write      # Actually create manifest.toml template
+airis generate files    # Regenerate workspace files from manifest.toml
 airis doctor            # Diagnose workspace health, detect config drift
 airis doctor --fix      # Auto-repair detected issues
 airis sync-deps         # Resolve "latest"/"lts" policies to actual versions
