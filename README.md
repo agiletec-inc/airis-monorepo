@@ -972,6 +972,5 @@ Your support helps maintain and improve this tool. Thank you! 🙏
 
 ## 🔗 Related Projects
 
-- [makefile-global](https://github.com/kazukinakai/makefile-global) - Predecessor (Make-based)
 - [Just](https://just.systems) - Command runner (Make alternative)
 - [pnpm](https://pnpm.io) - Fast package manager with catalog support
