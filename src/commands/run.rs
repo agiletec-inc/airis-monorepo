@@ -614,10 +614,11 @@ fn orchestrated_up(manifest: &Manifest) -> Result<()> {
 
         // Wait for Supabase DB to be healthy
         println!("   {} Waiting for Supabase DB to be healthy...", "⏳".dimmed());
-        let health_check = "docker compose -f supabase/docker-compose.yml exec -T db pg_isready -U postgres -h localhost";
+        let compose_file = supabase_files.first().map(|s| s.as_str()).unwrap_or("supabase/docker-compose.yml");
+        let health_check = format!("docker compose -f {} exec -T db pg_isready -U postgres -h localhost", compose_file);
         let mut retries = 30;
         while retries > 0 {
-            if exec_command(health_check).unwrap_or(false) {
+            if exec_command(&health_check).unwrap_or(false) {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_secs(2));
@@ -798,12 +799,89 @@ fn build_compose_command(manifest: &Manifest, base_cmd: &str) -> String {
     format!("docker compose {}", base_cmd)
 }
 
+/// Validate a clean path/pattern is safe (no path traversal, no absolute paths)
+///
+/// Returns Some(sanitized_value) if safe, None if dangerous
+fn validate_clean_path(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+
+    // Reject empty paths
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Reject absolute paths
+    if trimmed.starts_with('/') || trimmed.starts_with('~') {
+        return None;
+    }
+
+    // Reject path traversal attempts
+    if trimmed.contains("..") {
+        return None;
+    }
+
+    // Reject shell metacharacters that could be exploited
+    // Allow only alphanumeric, dash, underscore, dot, and forward slash
+    let is_safe = trimmed.chars().all(|c| {
+        c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/'
+    });
+
+    if !is_safe {
+        return None;
+    }
+
+    // Reject paths that start with a dot followed by nothing or slash (hidden dirs are ok like .next)
+    // But reject "." or "./" as they would delete everything
+    if trimmed == "." || trimmed == "./" {
+        return None;
+    }
+
+    Some(trimmed.to_string())
+}
+
+/// Validate a recursive pattern (for find -name)
+///
+/// Returns Some(sanitized_pattern) if safe, None if dangerous
+fn validate_clean_pattern(pattern: &str) -> Option<String> {
+    let trimmed = pattern.trim();
+
+    // Reject empty patterns
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Patterns should be simple names, not paths
+    if trimmed.contains('/') || trimmed.contains("..") {
+        return None;
+    }
+
+    // Reject shell metacharacters except for glob wildcards (* and ?)
+    // which are handled safely by find -name
+    let is_safe = trimmed.chars().all(|c| {
+        c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '*' || c == '?'
+    });
+
+    if !is_safe {
+        return None;
+    }
+
+    // Escape single quotes for shell safety
+    let escaped = trimmed.replace('\'', "'\\''");
+
+    Some(escaped)
+}
+
 /// Build clean command from manifest.toml [workspace.clean] section
 ///
 /// Docker First Philosophy:
 /// - Clean HOST side artifacts only (leaked node_modules, .next, etc.)
 /// - NEVER touch container cache (preserve build speed)
 /// - Exclude supabase and .git directories
+///
+/// Security:
+/// - Validates all paths to prevent path traversal attacks
+/// - Rejects absolute paths and ".." sequences
+/// - Sanitizes shell metacharacters
 fn build_clean_command(manifest: &Manifest) -> String {
     let clean = &manifest.workspace.clean;
     let mut parts = Vec::new();
@@ -813,21 +891,40 @@ fn build_clean_command(manifest: &Manifest) -> String {
 
     // Recursive patterns (e.g., node_modules) - clean on host side only
     // Use simple find without -prune to catch all matching directories
+    // Exclude: supabase, infra (contains Supabase local), .git
     for pattern in &clean.recursive {
-        parts.push(format!(
-            "find . -maxdepth 3 -type d -name '{}' -not -path './supabase/*' -not -path './.git/*' -exec rm -rf {{}} + 2>/dev/null || true",
-            pattern
-        ));
+        if let Some(safe_pattern) = validate_clean_pattern(pattern) {
+            parts.push(format!(
+                "find . -maxdepth 3 -type d -name '{}' -not -path './supabase/*' -not -path './infra/*' -not -path './.git/*' -exec rm -rf {{}} + 2>/dev/null || true",
+                safe_pattern
+            ));
+        } else {
+            // Warn about skipped dangerous pattern
+            parts.push(format!(
+                "echo '⚠️  Skipped unsafe recursive pattern: {}'",
+                pattern.replace('\'', "")
+            ));
+        }
     }
 
     // Root directories - clean on host side only
     // These are typically in manifest.toml [workspace.clean].dirs
-    if !clean.dirs.is_empty() {
-        let dirs = clean.dirs.iter()
-            .map(|d| format!("./{}", d))
-            .collect::<Vec<_>>()
-            .join(" ");
-        parts.push(format!("rm -rf {} 2>/dev/null || true", dirs));
+    // Process each directory individually for safety
+    for dir in &clean.dirs {
+        if let Some(safe_dir) = validate_clean_path(dir) {
+            // Use -maxdepth 0 to only match the exact path, not traverse into it first
+            // This ensures we're deleting what we intend to delete
+            parts.push(format!(
+                "rm -rf './{}'",
+                safe_dir.replace('\'', "'\\''")
+            ));
+        } else {
+            // Warn about skipped dangerous path
+            parts.push(format!(
+                "echo '⚠️  Skipped unsafe clean path: {}'",
+                dir.replace('\'', "")
+            ));
+        }
     }
 
     // Always clean .DS_Store (macOS artifacts)
@@ -1494,5 +1591,106 @@ my-custom = "echo custom"
         // Defaults should still exist
         assert!(commands.contains_key("up"));
         assert!(commands.contains_key("down"));
+    }
+
+    // Security tests for clean command validation
+
+    #[test]
+    fn test_validate_clean_path_safe_paths() {
+        // Safe paths should be accepted
+        assert!(validate_clean_path(".next").is_some());
+        assert!(validate_clean_path("dist").is_some());
+        assert!(validate_clean_path("build").is_some());
+        assert!(validate_clean_path("apps/dashboard/.next").is_some());
+        assert!(validate_clean_path("node_modules").is_some());
+    }
+
+    #[test]
+    fn test_validate_clean_path_rejects_traversal() {
+        // Path traversal should be rejected
+        assert!(validate_clean_path("..").is_none());
+        assert!(validate_clean_path("../").is_none());
+        assert!(validate_clean_path("../other-project").is_none());
+        assert!(validate_clean_path("foo/../bar").is_none());
+        assert!(validate_clean_path("../../important").is_none());
+    }
+
+    #[test]
+    fn test_validate_clean_path_rejects_absolute() {
+        // Absolute paths should be rejected
+        assert!(validate_clean_path("/").is_none());
+        assert!(validate_clean_path("/tmp").is_none());
+        assert!(validate_clean_path("/etc/passwd").is_none());
+        assert!(validate_clean_path("~").is_none());
+        assert!(validate_clean_path("~/Documents").is_none());
+    }
+
+    #[test]
+    fn test_validate_clean_path_rejects_shell_chars() {
+        // Shell metacharacters should be rejected
+        assert!(validate_clean_path("foo; rm -rf /").is_none());
+        assert!(validate_clean_path("foo && bar").is_none());
+        assert!(validate_clean_path("$(whoami)").is_none());
+        assert!(validate_clean_path("`id`").is_none());
+        assert!(validate_clean_path("foo|bar").is_none());
+        assert!(validate_clean_path("foo > bar").is_none());
+    }
+
+    #[test]
+    fn test_validate_clean_path_rejects_dangerous() {
+        // Current directory should be rejected (would delete everything)
+        assert!(validate_clean_path(".").is_none());
+        assert!(validate_clean_path("./").is_none());
+        assert!(validate_clean_path("").is_none());
+    }
+
+    #[test]
+    fn test_validate_clean_pattern_safe_patterns() {
+        // Safe patterns should be accepted
+        assert!(validate_clean_pattern("node_modules").is_some());
+        assert!(validate_clean_pattern(".next").is_some());
+        assert!(validate_clean_pattern("*.log").is_some());
+        assert!(validate_clean_pattern("dist").is_some());
+    }
+
+    #[test]
+    fn test_validate_clean_pattern_rejects_paths() {
+        // Patterns with paths should be rejected (find -name doesn't use paths)
+        assert!(validate_clean_pattern("foo/bar").is_none());
+        assert!(validate_clean_pattern("../node_modules").is_none());
+    }
+
+    #[test]
+    fn test_validate_clean_pattern_rejects_shell_injection() {
+        // Shell injection attempts should be rejected
+        assert!(validate_clean_pattern("'; rm -rf /; '").is_none());
+        assert!(validate_clean_pattern("$(whoami)").is_none());
+        assert!(validate_clean_pattern("`id`").is_none());
+    }
+
+    #[test]
+    fn test_build_clean_command_filters_unsafe() {
+        let manifest_content = r#"
+version = 1
+
+[workspace]
+name = "test"
+
+[workspace.clean]
+dirs = [".next", "../dangerous", "/etc", "dist"]
+recursive = ["node_modules", "'; rm -rf /;"]
+"#;
+        let manifest: Manifest = toml::from_str(manifest_content).unwrap();
+        let cmd = build_clean_command(&manifest);
+
+        // Safe paths should be in the command
+        assert!(cmd.contains(".next"));
+        assert!(cmd.contains("dist"));
+        assert!(cmd.contains("node_modules"));
+
+        // Dangerous paths should be skipped (warning shown instead)
+        assert!(cmd.contains("Skipped unsafe clean path: ../dangerous"));
+        assert!(cmd.contains("Skipped unsafe clean path: /etc"));
+        assert!(cmd.contains("Skipped unsafe recursive pattern"));
     }
 }

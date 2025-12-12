@@ -3,9 +3,25 @@ use std::os::unix::fs::symlink;
 use std::path::Path;
 
 use anyhow::Result;
+use chrono::Local;
 use colored::Colorize;
 
 use crate::manifest::MANIFEST_FILE;
+
+/// Create a backup of a file before replacing it
+/// Returns the backup path if successful
+fn backup_file(path: &Path) -> Result<std::path::PathBuf> {
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+    let backup_name = format!(
+        "{}.bak.{}",
+        path.file_name().unwrap_or_default().to_string_lossy(),
+        timestamp
+    );
+    let backup_path = path.parent().unwrap_or(Path::new(".")).join(&backup_name);
+
+    fs::copy(path, &backup_path)?;
+    Ok(backup_path)
+}
 
 /// Default manifest.toml template (embedded at compile time)
 const MANIFEST_TEMPLATE: &str = include_str!("../../examples/manifest.toml");
@@ -123,7 +139,14 @@ pub fn setup_npmrc() -> Result<()> {
                     );
                     skipped += 1;
                 } else {
-                    // Remove existing file and create symlink
+                    // Backup existing file before replacing
+                    let backup_path = backup_file(&npmrc_path)?;
+                    println!(
+                        "  {} {} → {}",
+                        "📦".cyan(),
+                        npmrc_path.display(),
+                        backup_path.display()
+                    );
                     fs::remove_file(&npmrc_path)?;
                     symlink(relative_root, &npmrc_path)?;
                     println!("  {} {} (replaced)", "✓".green(), npmrc_path.display());
@@ -166,6 +189,14 @@ pub fn setup_npmrc() -> Result<()> {
                     );
                     skipped += 1;
                 } else {
+                    // Backup existing file before replacing
+                    let backup_path = backup_file(&npmrc_path)?;
+                    println!(
+                        "  {} {} → {}",
+                        "📦".cyan(),
+                        npmrc_path.display(),
+                        backup_path.display()
+                    );
                     fs::remove_file(&npmrc_path)?;
                     symlink(relative_root, &npmrc_path)?;
                     println!("  {} {} (replaced)", "✓".green(), npmrc_path.display());
