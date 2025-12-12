@@ -223,6 +223,9 @@ enum Commands {
         /// If not specified, reads from manifest.toml [projects.<name>.runner.channel]
         #[arg(long)]
         channel: Option<String>,
+        /// Build for multiple targets (comma-separated: node,edge,bun,deno)
+        #[arg(long, value_delimiter = ',')]
+        targets: Option<Vec<String>>,
         /// Image name for Docker build (e.g., ghcr.io/org/app:tag)
         #[arg(long)]
         image: Option<String>,
@@ -614,7 +617,7 @@ fn main() -> Result<()> {
             }
         }
         Commands::Install => commands::run::run("install")?,
-        Commands::Build { project, affected, base, head, docker, channel, image, push, context_out, no_cache, remote_cache, prod, quick } => {
+        Commands::Build { project, affected, base, head, docker, channel, targets, image, push, context_out, no_cache, remote_cache, prod, quick } => {
             if affected && docker {
                 // Build only affected projects with Docker
                 use colored::Colorize;
@@ -688,59 +691,98 @@ fn main() -> Result<()> {
                 let target = project.ok_or_else(|| {
                     anyhow::anyhow!("--docker requires a project path (e.g., apps/web)")
                 })?;
-                // Resolve channel: CLI > manifest.toml > "lts"
-                let resolved_channel = resolve_channel_for_project(channel, &target);
+
+                // Multi-target build support
+                let build_targets: Vec<String> = if let Some(ref t) = targets {
+                    t.clone()
+                } else if let Some(ch) = channel.clone() {
+                    vec![ch]
+                } else {
+                    vec![resolve_channel_for_project(None, &target)]
+                };
+
+                use colored::Colorize;
+                let root = std::env::current_dir()?;
 
                 // Parse remote cache URL if provided
                 let remote = remote_cache.as_ref().map(|url| remote_cache::Remote::parse(url)).transpose()?;
-                let root = std::env::current_dir()?;
 
-                // Calculate content hash for cache lookup
-                let hash = docker_build::compute_content_hash(&root, &target)?;
-
-                // Check local cache first
-                if let Some(artifact) = docker_build::cache_hit(&target, &hash) {
-                    use colored::Colorize;
-                    println!("{}", format!("✅ Local cache hit: {}", artifact.image_ref).green());
-                    return Ok(());
+                if build_targets.len() > 1 {
+                    println!("{}", "==================================".bright_blue());
+                    println!("{}", "airis build --docker (multi-target)".bright_blue().bold());
+                    println!("Project: {}", target.cyan());
+                    println!("Targets: {}", build_targets.join(", ").yellow());
+                    println!("{}", "==================================".bright_blue());
                 }
 
-                // Check remote cache if configured
-                if let Some(ref remote) = remote {
-                    use colored::Colorize;
-                    if let Some(artifact) = remote_cache::remote_hit(&target, &hash, remote)? {
-                        println!("{}", format!("✅ Remote cache hit: {}", artifact.image_ref).green());
-                        // Store to local cache for next time
-                        docker_build::cache_store(&target, &hash, &artifact)?;
-                        return Ok(());
+                for (idx, build_channel) in build_targets.iter().enumerate() {
+                    if build_targets.len() > 1 {
+                        println!("\n{}", format!("▶ [{}/{}] Building for target: {}", idx + 1, build_targets.len(), build_channel).bright_blue());
+                    }
+
+                    // Calculate content hash for cache lookup (includes channel in hash)
+                    let base_hash = docker_build::compute_content_hash(&root, &target)?;
+                    let hash = format!("{}-{}", base_hash, build_channel);
+                    let final_hash = blake3::hash(hash.as_bytes()).to_hex()[..12].to_string();
+
+                    // Check local cache first
+                    if let Some(artifact) = docker_build::cache_hit(&target, &final_hash) {
+                        println!("{}", format!("  ✅ Local cache hit: {}", artifact.image_ref).green());
+                        continue;
+                    }
+
+                    // Check remote cache if configured
+                    if let Some(ref remote) = remote {
+                        if let Some(artifact) = remote_cache::remote_hit(&target, &final_hash, remote)? {
+                            println!("{}", format!("  ✅ Remote cache hit: {}", artifact.image_ref).green());
+                            // Store to local cache for next time
+                            docker_build::cache_store(&target, &final_hash, &artifact)?;
+                            continue;
+                        }
+                    }
+
+                    // Generate image name with target suffix for multi-target
+                    let target_image_name = if build_targets.len() > 1 {
+                        image.as_ref().map(|img| {
+                            if img.contains(':') {
+                                format!("{}-{}", img, build_channel)
+                            } else {
+                                format!("{}:{}", img, build_channel)
+                            }
+                        })
+                    } else {
+                        image.clone()
+                    };
+
+                    let config = docker_build::BuildConfig {
+                        target: target.clone(),
+                        image_name: target_image_name,
+                        push,
+                        no_cache,
+                        context_out: context_out.clone(),
+                        channel: build_channel.clone(),
+                        ..Default::default()
+                    };
+                    let result = docker_build::docker_build(&root, config)?;
+
+                    // Store to local cache
+                    let artifact = docker_build::CachedArtifact {
+                        image_ref: result.image_ref.clone(),
+                        hash: final_hash.clone(),
+                        built_at: chrono::Utc::now().to_rfc3339(),
+                        target: target.clone(),
+                    };
+                    docker_build::cache_store(&target, &final_hash, &artifact)?;
+
+                    // Store to remote cache if configured
+                    if let Some(ref remote) = remote {
+                        println!("{}", "  📤 Pushing to remote cache...".cyan());
+                        remote_cache::remote_store(&target, &final_hash, &artifact, remote)?;
                     }
                 }
 
-                let config = docker_build::BuildConfig {
-                    target: target.clone(),
-                    image_name: image,
-                    push,
-                    no_cache,
-                    context_out,
-                    channel: resolved_channel,
-                    ..Default::default()
-                };
-                let result = docker_build::docker_build(&root, config)?;
-
-                // Store to local cache
-                let artifact = docker_build::CachedArtifact {
-                    image_ref: result.image_ref.clone(),
-                    hash: hash.clone(),
-                    built_at: chrono::Utc::now().to_rfc3339(),
-                    target: target.clone(),
-                };
-                docker_build::cache_store(&target, &hash, &artifact)?;
-
-                // Store to remote cache if configured
-                if let Some(ref remote) = remote {
-                    use colored::Colorize;
-                    println!("{}", "📤 Pushing to remote cache...".cyan());
-                    remote_cache::remote_store(&target, &hash, &artifact, remote)?;
+                if build_targets.len() > 1 {
+                    println!("\n{}", format!("✅ Built {} target(s) for {}", build_targets.len(), target).green().bold());
                 }
             } else if prod {
                 let app_name = project.as_deref().ok_or_else(|| {

@@ -113,3 +113,14 @@ fn test_policy_check_no_config() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_build_targets_option() {
+    // Check that --targets option is available in help
+    airis()
+        .args(["build", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--targets"))
+        .stdout(predicate::str::contains("node,edge,bun,deno"));
+}
