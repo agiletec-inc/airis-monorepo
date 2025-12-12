@@ -1,5 +1,6 @@
 pub mod affected;
 pub mod bump_version;
+pub mod clean;
 pub mod doctor;
 pub mod docs;
 pub mod generate;

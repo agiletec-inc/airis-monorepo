@@ -1,7 +1,12 @@
+mod channel;
 mod commands;
+mod dag;
+mod docker_build;
 mod generators;
 mod manifest;
 mod ownership;
+mod pnpm;
+mod safe_fs;
 mod templates;
 
 use anyhow::Result;
@@ -137,18 +142,40 @@ enum Commands {
 
     /// Build all apps (alias for 'run build')
     Build {
-        /// Build production Docker image
+        /// Target project path (e.g., apps/web)
+        project: Option<String>,
+        /// Build using Docker (hermetic build with auto-generated Dockerfile)
+        #[arg(long)]
+        docker: bool,
+        /// Runtime channel: lts, current, edge, bun, deno, or version (e.g., 22.12.0)
+        #[arg(long, default_value = "lts")]
+        channel: String,
+        /// Image name for Docker build (e.g., ghcr.io/org/app:tag)
+        #[arg(long)]
+        image: Option<String>,
+        /// Push image to registry after build
+        #[arg(long)]
+        push: bool,
+        /// Output directory for build context (for debugging)
+        #[arg(long)]
+        context_out: Option<std::path::PathBuf>,
+        /// No cache for Docker build
+        #[arg(long)]
+        no_cache: bool,
+        /// Build production Docker image (legacy)
         #[arg(long)]
         prod: bool,
         /// Quick build test (standalone output check)
         #[arg(long)]
         quick: bool,
-        /// App name (required for --prod or --quick)
-        app: Option<String>,
     },
 
-    /// Clean build artifacts (alias for 'run clean')
-    Clean,
+    /// Clean build artifacts (node_modules, .next, dist, etc.)
+    Clean {
+        /// Preview what would be deleted without actually deleting
+        #[arg(long)]
+        dry_run: bool,
+    },
 
     /// Run linting (alias for 'run lint')
     Lint,
@@ -480,22 +507,38 @@ fn main() -> Result<()> {
             }
         }
         Commands::Install => commands::run::run("install")?,
-        Commands::Build { prod, quick, app } => {
-            if prod {
-                let app_name = app.as_deref().ok_or_else(|| {
-                    anyhow::anyhow!("--prod requires --app <name>")
+        Commands::Build { project, docker, channel, image, push, context_out, no_cache, prod, quick } => {
+            if docker {
+                // Hermetic Docker build
+                let target = project.ok_or_else(|| {
+                    anyhow::anyhow!("--docker requires a project path (e.g., apps/web)")
+                })?;
+                let config = docker_build::BuildConfig {
+                    target,
+                    image_name: image,
+                    push,
+                    no_cache,
+                    context_out,
+                    channel,
+                    ..Default::default()
+                };
+                let root = std::env::current_dir()?;
+                docker_build::docker_build(&root, config)?;
+            } else if prod {
+                let app_name = project.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("--prod requires a project path")
                 })?;
                 commands::run::run_build_prod(app_name)?;
             } else if quick {
-                let app_name = app.as_deref().ok_or_else(|| {
-                    anyhow::anyhow!("--quick requires --app <name>")
+                let app_name = project.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("--quick requires a project path")
                 })?;
                 commands::run::run_build_quick(app_name)?;
             } else {
                 commands::run::run("build")?;
             }
         }
-        Commands::Clean => commands::run::run("clean")?,
+        Commands::Clean { dry_run } => commands::clean::run(dry_run)?,
         Commands::Lint => commands::run::run("lint")?,
         Commands::Format => commands::run::run("format")?,
         Commands::Typecheck => commands::run::run("typecheck")?,
