@@ -253,6 +253,15 @@ enum Commands {
         dry_run: bool,
     },
 
+    /// Generate deployment bundle (image.tar, artifact.tar.gz, bundle.json)
+    Bundle {
+        /// Target project path (e.g., apps/web)
+        project: String,
+        /// Output directory (default: dist/)
+        #[arg(short, long)]
+        output: Option<std::path::PathBuf>,
+    },
+
     /// Run linting (alias for 'run lint')
     Lint,
 
@@ -726,6 +735,9 @@ fn main() -> Result<()> {
             }
         }
         Commands::Clean { dry_run } => commands::clean::run(dry_run)?,
+        Commands::Bundle { project, output } => {
+            commands::bundle::run(&project, output.as_deref())?;
+        }
         Commands::Lint => commands::run::run("lint")?,
         Commands::Format => commands::run::run("format")?,
         Commands::Typecheck => commands::run::run("typecheck")?,

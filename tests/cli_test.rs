@@ -73,3 +73,23 @@ fn test_affected_command() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_bundle_help() {
+    airis()
+        .args(["bundle", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("image.tar"))
+        .stdout(predicate::str::contains("artifact.tar.gz"))
+        .stdout(predicate::str::contains("bundle.json"));
+}
+
+#[test]
+fn test_bundle_requires_project() {
+    // Bundle without project argument should fail
+    airis()
+        .arg("bundle")
+        .assert()
+        .failure();
+}
