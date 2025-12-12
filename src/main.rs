@@ -2,6 +2,7 @@ mod channel;
 mod commands;
 mod dag;
 mod docker_build;
+mod executor;
 mod generators;
 mod manifest;
 mod ownership;
@@ -226,6 +227,9 @@ enum Commands {
         /// Build for multiple targets (comma-separated: node,edge,bun,deno)
         #[arg(long, value_delimiter = ',')]
         targets: Option<Vec<String>>,
+        /// Number of parallel build workers (default: CPU count)
+        #[arg(long, short = 'j')]
+        parallel: Option<usize>,
         /// Image name for Docker build (e.g., ghcr.io/org/app:tag)
         #[arg(long)]
         image: Option<String>,
@@ -617,74 +621,133 @@ fn main() -> Result<()> {
             }
         }
         Commands::Install => commands::run::run("install")?,
-        Commands::Build { project, affected, base, head, docker, channel, targets, image, push, context_out, no_cache, remote_cache, prod, quick } => {
+        Commands::Build { project, affected, base, head, docker, channel, targets, parallel, image, push, context_out, no_cache, remote_cache, prod, quick } => {
             if affected && docker {
-                // Build only affected projects with Docker
+                // Parallel build for affected projects
                 use colored::Colorize;
                 let affected_projects = commands::affected::run(&base, &head)?;
 
                 if affected_projects.is_empty() {
                     println!("{}", "✅ No affected projects to build".green());
                 } else {
-                    println!("{}", format!("🔨 Building {} affected project(s)...", affected_projects.len()).cyan());
+                    let worker_count = parallel.unwrap_or_else(executor::default_parallelism);
                     let root = std::env::current_dir()?;
-
-                    // Parse remote cache URL if provided
                     let remote = remote_cache.as_ref().map(|url| remote_cache::Remote::parse(url)).transpose()?;
 
+                    // Build task list
+                    let mut exec = executor::ParallelExecutor::new(worker_count);
+
                     for proj in &affected_projects {
-                        // Convert package name to path (e.g., @workspace/web -> apps/web)
                         let target = convert_package_to_path(proj);
-                        // Resolve channel: CLI > manifest.toml > "lts"
                         let resolved_channel = resolve_channel_for_project(channel.clone(), &target);
-                        println!("\n{}", format!("▶ Building {} (channel: {})", target, resolved_channel).bright_blue());
 
-                        // Calculate content hash for cache lookup
-                        let hash = docker_build::compute_content_hash(&root, &target)?;
-
-                        // Check local cache first
-                        if let Some(artifact) = docker_build::cache_hit(&target, &hash) {
-                            println!("{}", format!("  ✅ Local cache hit: {}", artifact.image_ref).green());
-                            continue;
-                        }
-
-                        // Check remote cache if configured
-                        if let Some(ref remote) = remote {
-                            if let Some(artifact) = remote_cache::remote_hit(&target, &hash, remote)? {
-                                println!("{}", format!("  ✅ Remote cache hit: {}", artifact.image_ref).green());
-                                // Store to local cache for next time
-                                docker_build::cache_store(&target, &hash, &artifact)?;
-                                continue;
+                        // Get dependencies from DAG
+                        let deps: Vec<String> = {
+                            let lock_path = root.join("pnpm-lock.yaml");
+                            if let Ok(lock) = pnpm::PnpmLock::load(&lock_path) {
+                                let workspace_map = pnpm::build_workspace_map(&lock);
+                                let dag = dag::build_dag(&workspace_map);
+                                dag.nodes.get(&target)
+                                    .map(|n| n.deps.iter()
+                                        .filter(|d| affected_projects.iter().any(|ap| convert_package_to_path(ap) == **d))
+                                        .cloned()
+                                        .collect())
+                                    .unwrap_or_default()
+                            } else {
+                                vec![]
                             }
-                        }
+                        };
 
-                        let config = docker_build::BuildConfig {
+                        exec.add_task(executor::BuildTask {
+                            id: target.clone(),
                             target: target.clone(),
-                            image_name: image.clone(),
-                            push,
-                            no_cache,
-                            context_out: context_out.clone(),
                             channel: resolved_channel,
-                            ..Default::default()
-                        };
-                        let result = docker_build::docker_build(&root, config)?;
-
-                        // Store to local cache
-                        let artifact = docker_build::CachedArtifact {
-                            image_ref: result.image_ref.clone(),
-                            hash: hash.clone(),
-                            built_at: chrono::Utc::now().to_rfc3339(),
-                            target: target.clone(),
-                        };
-                        docker_build::cache_store(&target, &hash, &artifact)?;
-
-                        // Store to remote cache if configured
-                        if let Some(ref remote) = remote {
-                            println!("{}", "  📤 Pushing to remote cache...".cyan());
-                            remote_cache::remote_store(&target, &hash, &artifact, remote)?;
-                        }
+                            dependencies: deps,
+                        });
                     }
-                    println!("\n{}", format!("✅ Built {} project(s)", affected_projects.len()).green());
+
+                    // Execute in parallel
+                    let root_clone = root.clone();
+                    let image_clone = image.clone();
+                    let context_out_clone = context_out.clone();
+                    let remote_clone = remote.clone();
+
+                    let rt = tokio::runtime::Runtime::new()?;
+                    let results = rt.block_on(async {
+                        exec.execute(move |task| {
+                            let root = root_clone.clone();
+                            let image = image_clone.clone();
+                            let context_out = context_out_clone.clone();
+                            let remote = remote_clone.clone();
+
+                            async move {
+                                let start = std::time::Instant::now();
+
+                                // Check cache first
+                                let hash = docker_build::compute_content_hash(&root, &task.target)?;
+
+                                if let Some(_artifact) = docker_build::cache_hit(&task.target, &hash) {
+                                    return Ok(executor::TaskResult {
+                                        task_id: task.id,
+                                        success: true,
+                                        duration_ms: start.elapsed().as_millis() as u64,
+                                        error: None,
+                                    });
+                                }
+
+                                // Check remote cache
+                                if let Some(ref remote) = remote {
+                                    if let Some(artifact) = remote_cache::remote_hit(&task.target, &hash, remote)? {
+                                        docker_build::cache_store(&task.target, &hash, &artifact)?;
+                                        return Ok(executor::TaskResult {
+                                            task_id: task.id,
+                                            success: true,
+                                            duration_ms: start.elapsed().as_millis() as u64,
+                                            error: None,
+                                        });
+                                    }
+                                }
+
+                                // Build
+                                let config = docker_build::BuildConfig {
+                                    target: task.target.clone(),
+                                    image_name: image,
+                                    push,
+                                    no_cache,
+                                    context_out,
+                                    channel: task.channel.clone(),
+                                    ..Default::default()
+                                };
+
+                                let result = docker_build::docker_build(&root, config)?;
+
+                                // Store cache
+                                let artifact = docker_build::CachedArtifact {
+                                    image_ref: result.image_ref.clone(),
+                                    hash: hash.clone(),
+                                    built_at: chrono::Utc::now().to_rfc3339(),
+                                    target: task.target.clone(),
+                                };
+                                docker_build::cache_store(&task.target, &hash, &artifact)?;
+
+                                if let Some(ref remote) = remote {
+                                    remote_cache::remote_store(&task.target, &hash, &artifact, remote)?;
+                                }
+
+                                Ok(executor::TaskResult {
+                                    task_id: task.id,
+                                    success: true,
+                                    duration_ms: start.elapsed().as_millis() as u64,
+                                    error: None,
+                                })
+                            }
+                        }).await
+                    })?;
+
+                    let failed: Vec<_> = results.iter().filter(|r| !r.success).collect();
+                    if !failed.is_empty() {
+                        anyhow::bail!("{} build(s) failed", failed.len());
+                    }
                 }
             } else if docker {
                 // Hermetic Docker build for single project

@@ -202,12 +202,16 @@ impl<'a> ContextBuilder<'a> {
             copy_dir_recursive(&src_public, &dst_dir.join("public"))?;
         }
 
-        // Copy next.config.* files
+        // Copy config files (next.config.*, tailwind.config.*, tsup.config.*, postcss.config.*)
         for entry in fs::read_dir(&src_dir)? {
             let entry = entry?;
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str.starts_with("next.config") || name_str.starts_with("tailwind.config") {
+            if name_str.starts_with("next.config")
+                || name_str.starts_with("tailwind.config")
+                || name_str.starts_with("tsup.config")
+                || name_str.starts_with("postcss.config")
+            {
                 fs::copy(entry.path(), dst_dir.join(&name))?;
             }
         }

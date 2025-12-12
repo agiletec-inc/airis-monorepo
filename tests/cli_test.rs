@@ -124,3 +124,14 @@ fn test_build_targets_option() {
         .stdout(predicate::str::contains("--targets"))
         .stdout(predicate::str::contains("node,edge,bun,deno"));
 }
+
+#[test]
+fn test_build_parallel_option() {
+    // Check that --parallel / -j option is available
+    airis()
+        .args(["build", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--parallel"))
+        .stdout(predicate::str::contains("-j"));
+}

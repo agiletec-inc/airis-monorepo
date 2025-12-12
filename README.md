@@ -195,7 +195,35 @@ $ airis doctor --fix
 
 Since `manifest.toml` is the single source of truth, all derived files can be regenerated instantly. LLMs can't permanently break your config.
 
-### 6. Homebrew Distribution with Auto-Release
+### 6. Production-Grade Build Engine (v1.35+)
+
+```bash
+# Parallel DAG-based build (respects dependencies)
+airis build --affected --docker -j 8
+
+# Output:
+🚀 Starting parallel build (5 tasks, 8 workers)
+  ✅ [1/5] libs/ui (1234ms)
+  ✅ [2/5] libs/api-client (890ms)
+  ✅ [3/5] apps/web (4521ms)       # waited for libs/ui
+  ✅ [4/5] apps/api (3200ms)       # waited for libs/api-client
+  ✅ [5/5] apps/worker (2100ms)
+
+✅ All 5 tasks completed successfully (12945ms total)
+```
+
+**Build System Features:**
+
+| Feature | Description |
+|---------|-------------|
+| **Hermetic Builds** | Docker-isolated, reproducible across environments |
+| **BLAKE3 Cache** | Content-addressable cache at `~/.airis/.cache/` |
+| **Remote Cache** | S3 (`s3://bucket`) or OCI (`oci://registry`) |
+| **Parallel DAG** | Dependency-aware parallel execution |
+| **Multi-Target** | Build for node, edge, bun, deno simultaneously |
+| **Channel Resolver** | `lts`, `current`, `edge`, `bun`, `deno` → Docker images |
+
+### 7. Homebrew Distribution with Auto-Release
 
 ```bash
 $ git push origin main
@@ -282,14 +310,15 @@ Everything else (auto-generated)
 - **Affected dependency graph** - `airis affected` analyzes git changes and shows impacted packages
 - Transitive dependency tracking (if A depends on B, changing B marks A as affected)
 
-### What NX/Turbo Has (That airis Doesn't Yet)
+### What NX/Turbo Has (That airis NOW Has Too!)
 
-- Distributed build cache (for large-scale optimization)
-- Remote cache sharing across teams
+- ✅ **Distributed build cache** - S3 and OCI registry support
+- ✅ **Remote cache sharing** - `--remote-cache s3://bucket` or `oci://registry`
+- ✅ **Parallel DAG builds** - `--parallel` or `-j` flag
+- ✅ **Affected-only builds** - `--affected` flag
+- ✅ **Multi-target builds** - `--targets node,edge,bun`
 
-**But these features assume "humans maintaining a 3-year-old monorepo".**
-
-For AI-assisted development with auto-regeneration, these become less critical.
+**airis v1.40+ has feature parity with NX/Turborepo, plus Docker-first hermetic builds.**
 
 ### Example: Affected Analysis
 
@@ -306,11 +335,29 @@ $ airis affected
    - @airis/voice-gateway  # depends on @agiletec/ui
 ```
 
-### Future Roadmap
+### Production-Grade Build System (v1.35+)
 
-- `airis build --affected` - Build only affected packages
-- `airis test --affected` - Test only affected packages
-- manifest-driven code generation
+```bash
+# Hermetic Docker build with channel resolver
+airis build apps/web --docker --channel lts
+
+# Build only affected projects in parallel
+airis build --affected --docker -j 8
+
+# Multi-target build (node + edge + bun simultaneously)
+airis build apps/api --docker --targets node,edge,bun
+
+# With remote cache (S3 or OCI registry)
+airis build --affected --docker --remote-cache s3://my-bucket/cache
+
+# Generate deployment bundle
+airis bundle apps/api
+# → dist/api/bundle.json, image.tar, artifact.tar.gz
+
+# Policy gates (pre-deployment validation)
+airis policy check
+airis policy enforce
+```
 
 **airis is not a NX/Turbo alternative. It's the monorepo OS for the LLM era.**
 
@@ -537,6 +584,58 @@ airis build             # Build project
 airis test              # Run tests
 airis clean             # Clean artifacts
 airis down              # Stop services
+```
+
+### Hermetic Docker Build (v1.35+)
+```bash
+# Single project build with channel
+airis build apps/web --docker --channel lts
+
+# Build affected projects only
+airis build --affected --docker
+
+# Parallel build (default: CPU count)
+airis build --affected --docker -j 8
+
+# Multi-target build
+airis build apps/api --docker --targets node,edge,bun
+
+# With remote cache
+airis build --affected --docker --remote-cache s3://bucket/cache
+airis build --affected --docker --remote-cache oci://ghcr.io/org/cache
+```
+
+### Bundle & Deploy (v1.38+)
+```bash
+airis bundle apps/api              # Generate deployment package
+airis bundle apps/api -o ./release # Custom output directory
+```
+
+Output:
+```
+dist/api/
+├── bundle.json      # Metadata (version, hash, deps, git SHA)
+├── image.tar        # Docker image (docker save)
+└── artifact.tar.gz  # Build artifacts (.next/standalone, dist/)
+```
+
+### Policy Gates (v1.39+)
+```bash
+airis policy init      # Create .airis/policies.toml
+airis policy check     # Run validation checks
+airis policy enforce   # Fail on violations
+```
+
+Configuration (`.airis/policies.toml`):
+```toml
+[gates]
+require_clean_git = true
+require_env = ["DATABASE_URL", "API_KEY"]
+forbid_files = [".env.local", "secrets.json"]
+forbid_patterns = ["**/*.secret"]
+
+[security]
+scan_secrets = true
 ```
 
 ### Custom Commands
@@ -779,39 +878,42 @@ airis sync-deps
 | 1.5 Command Unification | ✅ Done | v1.0.2 | airis commands, guards, remap |
 | 1.6 Version Automation | ✅ Done | v1.1.0 | bump-version, hooks, auto-bump |
 | 2. Catalog Policies | ✅ Done | v0.3.0 | sync-deps, latest/lts |
-| 3. Smart Generation | 🚧 In Progress | v0.4.0 | Full package.json gen, orchestration |
-| 4. Validation | 📋 Planned | v0.5.0 | validate, doctor, env checks |
-| 5. LLM Integration | 📋 Planned | v0.6.0 | MCP server, context gen |
-| 6. Migration | 📋 Planned | v0.7.0 | Auto-discovery, wizard |
-| 7. Advanced | 🔮 Future | v0.8.0+ | CI/CD, modes, perf |
+| **3. Hermetic Build** | ✅ Done | **v1.35** | Docker build, channel resolver, BLAKE3 cache |
+| **4. Remote Cache** | ✅ Done | **v1.37** | S3/OCI remote cache, cache hit/miss |
+| **5. Bundle & Deploy** | ✅ Done | **v1.38** | bundle.json, image.tar, artifact.tar.gz |
+| **6. Policy Gates** | ✅ Done | **v1.39** | Git clean, env check, secret scan |
+| **7. Multi-Target** | ✅ Done | **v1.40** | --targets node,edge,bun |
+| **8. Parallel Build** | ✅ Done | **v1.41** | DAG-based parallel execution, -j flag |
+| 9. K8s Manifests | 📋 Planned | v1.42+ | deployment.yaml, service.yaml generation |
+| 10. Build Matrix | 🔮 Future | v1.50+ | linux/amd64, linux/arm64 cross-build |
 
 ---
 
 ## 🎯 Next Steps (What to Work On)
 
-### Immediate (v0.4.0)
+### Immediate (v1.42+)
 
-1. **Package.json Full Generation**
-   - Add `[[project]]` section to manifest schema
-   - Implement project-level scripts/deps
-   - Generate app-specific package.json files
+1. **Kubernetes Manifest Generation**
+   - `airis bundle --k8s` generates deployment.yaml, service.yaml, ingress.yaml
+   - Helm chart generation
+   - ConfigMap from env files
 
-2. **Multi-Compose Orchestration**
-   - Parse `[orchestration.dev]` section
-   - Generate unified `just up` command
-   - Handle dependency ordering
+2. **Build Matrix**
+   - `--platforms linux/amd64,linux/arm64`
+   - Cross-compilation support
+   - OCI multi-arch images
 
-### After v0.4.0
+### Future
 
-1. **Validation & Safety** (v0.5.0)
-   - Implement `airis validate`
-   - Add env var validation
-   - Build `airis doctor`
+1. **MCP Server Integration**
+   - `airis-workspace` MCP server
+   - Tools: `get_manifest`, `build`, `bundle`, `policy_check`
+   - Integration with Claude Code
 
-2. **LLM Integration** (v0.6.0)
-   - Generate llm-context.md
-   - Build MCP server
-   - Optimize error messages
+2. **Performance Optimization**
+   - Build graph visualization
+   - Distributed workers
+   - Incremental builds
 
 ---
 
