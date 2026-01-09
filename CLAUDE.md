@@ -8,10 +8,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Core Philosophy**: Prevent host pollution by blocking direct `pnpm`/`npm`/`yarn` execution and forcing Docker-first workflow via `airis` CLI commands. Special exception for Rust projects (local builds for GPU support).
 
-**Current Version**: v1.41.0
-- v1.0.2: Command unification (`[commands]`, `[guards]`, `[remap]`) - justfile now optional
+**Current Version**: v1.42.0
+
+**AIRIS Ecosystem** (responsibility separation):
+- **airis-workspace** (this repo): Monorepo management only
+- **airis-mcp-gateway**: MCP server connections
+- **airis-agent**: LLM orchestration brain
+
+Key milestones:
+- v1.0.2: Command unification (`[commands]`, `[guards]`, `[remap]`)
 - v1.1.0: Version automation (`[versioning]`, `airis bump-version`, Git hooks)
-- v1.2.0: Removed workspace.yaml (unused), simplified init command
+- v1.35+: Parallel DAG build engine with BLAKE3 cache
+- v1.38: Bundle & deploy (`airis bundle`)
+- v1.39: Policy gates (`airis policy check/enforce`)
+- v1.42: LTS version resolution from npm dist-tags
 
 ## Build & Development Commands
 
@@ -37,6 +47,24 @@ cargo run -- init
 
 # Validate MANIFEST + workspace metadata
 cargo run -- validate
+
+# Run single test
+cargo test test_name
+
+# Run tests with output
+cargo test -- --nocapture
+```
+
+### Build Commands (v1.35+)
+```bash
+# Docker build with DAG parallelism
+airis build --docker --affected -j 8
+
+# Bundle for deployment
+airis bundle <project>
+
+# Policy check before deploy
+airis policy check
 ```
 
 ## ⚠️ airis init Specification (Strictly Enforced)
@@ -115,9 +143,24 @@ airis generate files
 **Catalog System** (integrated into `airis init`):
 - Define version policies in `[packages.catalog]`: `"latest"`, `"lts"`, `"^X.Y.Z"`, or `{ follow = "package" }`
 - `airis init` resolves policies to actual versions via npm registry
+- `lts` policy queries npm dist-tags for actual LTS versions (e.g., `v20-lts` for Node.js)
 - Writes resolved versions to `pnpm-workspace.yaml` catalog section
 - Dependencies use `"catalog:"` reference in package.json
 - **Only manifest.toml is human-edited; package.json is generated**
+
+**Build Engine (v1.35+)**:
+- DAG-based parallel builds with dependency ordering
+- BLAKE3 content hashing for cache
+- Remote cache support (S3/OCI)
+- `airis build --docker --affected -j 8`
+
+**Bundle & Deploy (v1.38+)**:
+- `airis bundle <project>` generates deployment package
+- Outputs: `bundle.json`, `image.tar`, `artifact.tar.gz`
+
+**Policy Gates (v1.39+)**:
+- `.airis/policies.toml` for pre-deployment validation
+- `airis policy check/enforce`
 
 **Auto-Generation Markers**: All generated files include `DO NOT EDIT` warnings and `_generated` metadata to prevent manual edits.
 
@@ -132,6 +175,12 @@ airis generate files
 - **src/commands/bump_version.rs**: Version bumping with Conventional Commits (v1.1.0+)
 - **src/commands/hooks.rs**: Git hooks installation (v1.1.0+)
 - **src/commands/sync_deps.rs**: Catalog version resolution (deprecated, now in init)
+- **src/commands/build.rs**: DAG-based parallel Docker builds
+- **src/commands/bundle.rs**: Deployment package generation
+- **src/commands/policy.rs**: Pre-deployment validation gates
+- **src/dag.rs**: DAG construction and topological sort
+- **src/executor.rs**: Parallel task execution
+- **src/docker_build.rs**: Dockerfile generation and build context
 - **src/templates/mod.rs**: Handlebars engine driven by MANIFEST data
 
 ## Important Constraints
