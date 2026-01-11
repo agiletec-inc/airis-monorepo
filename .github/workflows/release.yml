@@ -122,42 +122,46 @@ jobs:
           # Create Formula directory if it doesn't exist
           mkdir -p Formula
 
-          # Update formula - build with echo to avoid YAML parsing issues
-          {
-            echo 'class AirisWorkspace < Formula'
-            echo '  desc "Docker-first monorepo workspace manager for rapid prototyping"'
-            echo '  homepage "https://github.com/agiletec-inc/airis-workspace"'
-            echo '  license "MIT"'
-            echo "  url \"https://github.com/agiletec-inc/airis-workspace/releases/download/v${VERSION}/airis-${VERSION}-${ARCH}.tar.gz\""
-            echo "  sha256 \"${SHA256}\""
-            echo "  version \"${VERSION}\""
-            echo ''
-            echo '  # Docker backend is required - this is a Docker-first tool'
-            echo '  on_arm do'
-            echo '    depends_on cask: "orbstack"'
-            echo '  end'
-            echo ''
-            echo '  on_intel do'
-            echo '    depends_on cask: "docker"'
-            echo '  end'
-            echo ''
-            echo '  def install'
-            echo '    bin.install "airis"'
-            echo '  end'
-            echo ''
-            echo '  def caveats'
-            echo '    <<~EOS'
-            echo '      Make sure your Docker backend is running before using airis:'
-            echo '        - Apple Silicon: OrbStack (installed as dependency)'
-            echo '        - Intel Mac: Docker Desktop (installed as dependency)'
-            echo '    EOS'
-            echo '  end'
-            echo ''
-            echo '  test do'
-            echo '    system "#{bin}/airis", "--version"'
-            echo '  end'
-            echo 'end'
-          } > Formula/airis-workspace.rb
+          # Update formula - fixed syntax (no depends_on cask: - it's invalid)
+          cat > Formula/airis-workspace.rb << 'FORMULA_EOF'
+class AirisWorkspace < Formula
+  desc "Docker-first monorepo workspace manager for rapid prototyping"
+  homepage "https://github.com/agiletec-inc/airis-workspace"
+  license "MIT"
+FORMULA_EOF
+
+          # Add version-specific parts
+          cat >> Formula/airis-workspace.rb << FORMULA_VERSION
+  version "${VERSION}"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/agiletec-inc/airis-workspace/releases/download/v${VERSION}/airis-${VERSION}-aarch64-apple-darwin.tar.gz"
+      sha256 "${SHA256}"
+    end
+  end
+FORMULA_VERSION
+
+          # Add static parts
+          cat >> Formula/airis-workspace.rb << 'FORMULA_EOF'
+
+  def install
+    bin.install "airis"
+  end
+
+  def caveats
+    <<~EOS
+      airis-workspace requires Docker to run.
+      Install OrbStack (recommended) or Docker Desktop:
+        brew install --cask orbstack
+    EOS
+  end
+
+  test do
+    system "#{bin}/airis", "--version"
+  end
+end
+FORMULA_EOF
 
           # Commit and push
           git config user.name "GitHub Actions"
