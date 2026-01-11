@@ -43,7 +43,7 @@ This gives you:
 ### Why Rust?
 
 - **Fast** - `airis init` completes in tens of milliseconds. Run it before every commit without noticing
-- **Single binary** - No Node.js or Python dependencies. Just `brew install` and go
+- **Single binary** - No Node.js or Python dependencies. Just download and go
 - **Cross-platform** - Same binary works on macOS (Apple Silicon/Intel), Linux, and Windows
 
 ---
@@ -70,13 +70,8 @@ AIris Workspace is the **development environment enforcer** of the **AIRIS Suite
 ### Quick Install: Complete AIRIS Suite
 
 ```bash
-# Install all AIRIS tools via Homebrew (recommended)
-brew tap agiletec-inc/tap
-brew install airis-workspace airis-mcp-gateway
-
-# For Claude Code users: Add airis-agent plugin
-/plugin marketplace add agiletec-inc/airis-agent
-/plugin install airis-agent
+# One command installs everything
+curl -fsSL https://raw.githubusercontent.com/agiletec-inc/airis-mcp-gateway/main/scripts/quick-install.sh | bash
 
 # Then start using airis-workspace
 cd your-monorepo && airis init
@@ -223,7 +218,7 @@ airis build --affected --docker -j 8
 | **Multi-Target** | Build for node, edge, bun, deno simultaneously |
 | **Channel Resolver** | `lts`, `current`, `edge`, `bun`, `deno` → Docker images |
 
-### 7. Homebrew Distribution with Auto-Release
+### 7. Auto-Release to GitHub
 
 ```bash
 $ git push origin main
@@ -231,10 +226,9 @@ $ git push origin main
 # 1. Determines version from commits (feat: → minor, fix: → patch)
 # 2. Builds release binary
 # 3. Creates GitHub release
-# 4. Updates Homebrew formula
 ```
 
-Your users just run `brew upgrade airis-workspace` and get the latest version. Zero manual release work.
+Users run the installer again to get the latest version. Zero manual release work.
 
 ---
 
@@ -365,17 +359,14 @@ airis policy enforce
 
 ## 🚀 Quick Start
 
-### Install (Recommended: Homebrew)
+### Install (Recommended: Unified Installer)
 
 ```bash
-# Install airis-workspace
-brew install agiletec-inc/tap/airis-workspace
-
-# Optional: Install AIRIS MCP Gateway for Claude Code integration
-brew install agiletec-inc/tap/airis-mcp-gateway
+# Installs everything: Gateway + MindBase + airis-workspace
+curl -fsSL https://raw.githubusercontent.com/agiletec-inc/airis-mcp-gateway/main/scripts/quick-install.sh | bash
 ```
 
-**Note**: airis-workspace requires Docker. Install [OrbStack](https://orbstack.dev) (Apple Silicon) or [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Intel).
+**Note**: Requires Docker. Install [OrbStack](https://orbstack.dev) (recommended) or [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ### Install (Alternative: Cargo)
 
