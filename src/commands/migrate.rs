@@ -13,10 +13,30 @@
 use anyhow::{bail, Context, Result};
 use chrono::Local;
 use colored::Colorize;
+use indexmap::IndexMap;
 use std::fs;
 use std::path::Path;
 
 use super::discover::{ComposeLocation, DiscoveryResult};
+
+/// Format an IndexMap as a TOML inline table
+/// e.g., { "dev" = "next dev", "build" = "next build" }
+fn format_inline_table(map: &IndexMap<String, String>) -> String {
+    let pairs: Vec<String> = map
+        .iter()
+        .map(|(k, v)| format!("\"{}\" = \"{}\"", escape_toml_string(k), escape_toml_string(v)))
+        .collect();
+    format!("{{ {} }}", pairs.join(", "))
+}
+
+/// Escape special characters in TOML strings
+fn escape_toml_string(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
 
 /// A single migration task
 #[derive(Debug, Clone)]
@@ -330,23 +350,63 @@ fn generate_manifest_content(discovery: &DiscoveryResult) -> Result<String> {
         lines.push("".to_string());
     }
 
-    // Apps section
+    // App definitions (using [[app]] array format for package.json generation)
     if !discovery.apps.is_empty() {
-        lines.push("[apps]".to_string());
         for app in &discovery.apps {
-            lines.push(format!("[apps.{}]", app.name));
+            lines.push("[[app]]".to_string());
+            lines.push(format!("name = \"{}\"", app.name));
             lines.push(format!("path = \"{}\"", app.path));
-            lines.push(format!("app_type = \"{}\"", app.framework));
+            lines.push(format!("kind = \"app\""));
+            lines.push(format!("framework = \"{}\"", app.framework));
+
+            // Scripts as inline table
+            if !app.scripts.is_empty() {
+                let scripts_str = format_inline_table(&app.scripts);
+                lines.push(format!("scripts = {}", scripts_str));
+            }
+
+            // Dependencies as inline table
+            if !app.deps.is_empty() {
+                let deps_str = format_inline_table(&app.deps);
+                lines.push(format!("deps = {}", deps_str));
+            }
+
+            // Dev dependencies as inline table
+            if !app.dev_deps.is_empty() {
+                let dev_deps_str = format_inline_table(&app.dev_deps);
+                lines.push(format!("dev_deps = {}", dev_deps_str));
+            }
+
             lines.push("".to_string());
         }
     }
 
-    // Libs section
+    // Library definitions (using [[app]] with kind = "lib")
     if !discovery.libs.is_empty() {
-        lines.push("[libs]".to_string());
         for lib in &discovery.libs {
-            lines.push(format!("[libs.{}]", lib.name));
+            lines.push("[[app]]".to_string());
+            lines.push(format!("name = \"{}\"", lib.name));
             lines.push(format!("path = \"{}\"", lib.path));
+            lines.push(format!("kind = \"lib\""));
+
+            // Scripts as inline table
+            if !lib.scripts.is_empty() {
+                let scripts_str = format_inline_table(&lib.scripts);
+                lines.push(format!("scripts = {}", scripts_str));
+            }
+
+            // Dependencies as inline table
+            if !lib.deps.is_empty() {
+                let deps_str = format_inline_table(&lib.deps);
+                lines.push(format!("deps = {}", deps_str));
+            }
+
+            // Dev dependencies as inline table
+            if !lib.dev_deps.is_empty() {
+                let dev_deps_str = format_inline_table(&lib.dev_deps);
+                lines.push(format!("dev_deps = {}", dev_deps_str));
+            }
+
             lines.push("".to_string());
         }
     }
@@ -434,6 +494,20 @@ mod tests {
     use tempfile::tempdir;
 
     fn create_test_discovery() -> DiscoveryResult {
+        let mut scripts = IndexMap::new();
+        scripts.insert("dev".to_string(), "next dev".to_string());
+        scripts.insert("build".to_string(), "next build".to_string());
+
+        let mut deps = IndexMap::new();
+        deps.insert("react".to_string(), "catalog:".to_string());
+        deps.insert("next".to_string(), "catalog:".to_string());
+
+        let mut dev_deps = IndexMap::new();
+        dev_deps.insert("typescript".to_string(), "catalog:".to_string());
+
+        let mut lib_scripts = IndexMap::new();
+        lib_scripts.insert("build".to_string(), "tsup".to_string());
+
         DiscoveryResult {
             apps: vec![DetectedApp {
                 name: "web".to_string(),
@@ -441,11 +515,17 @@ mod tests {
                 framework: Framework::NextJs,
                 has_dockerfile: true,
                 package_name: Some("@workspace/web".to_string()),
+                scripts,
+                deps,
+                dev_deps,
             }],
             libs: vec![DetectedLib {
                 name: "ui".to_string(),
                 path: "libs/ui".to_string(),
                 package_name: Some("@workspace/ui".to_string()),
+                scripts: lib_scripts,
+                deps: IndexMap::new(),
+                dev_deps: IndexMap::new(),
             }],
             compose_files: vec![DetectedCompose {
                 path: "docker-compose.yml".to_string(),
@@ -502,11 +582,20 @@ mod tests {
         let content = generate_manifest_content(&discovery).unwrap();
 
         assert!(content.contains("version = 1"));
-        assert!(content.contains("[apps.web]"));
-        assert!(content.contains("app_type = \"nextjs\""));
-        assert!(content.contains("[libs.ui]"));
+        // New format uses [[app]] instead of [apps.name]
+        assert!(content.contains("[[app]]"));
+        assert!(content.contains("name = \"web\""));
+        assert!(content.contains("framework = \"nextjs\""));
+        assert!(content.contains("kind = \"app\""));
+        // Check library is also using [[app]] with kind = "lib"
+        assert!(content.contains("kind = \"lib\""));
+        assert!(content.contains("name = \"ui\""));
+        // Check catalog
         assert!(content.contains("[packages.catalog]"));
         assert!(content.contains("typescript"));
+        // Check scripts/deps are included
+        assert!(content.contains("scripts = {"));
+        assert!(content.contains("deps = {"));
     }
 
     #[test]

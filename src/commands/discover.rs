@@ -70,6 +70,12 @@ pub struct DetectedApp {
     pub has_dockerfile: bool,
     #[allow(dead_code)]
     pub package_name: Option<String>,
+    /// Scripts from package.json
+    pub scripts: IndexMap<String, String>,
+    /// Dependencies from package.json
+    pub deps: IndexMap<String, String>,
+    /// Dev dependencies from package.json
+    pub dev_deps: IndexMap<String, String>,
 }
 
 /// Detected library
@@ -79,6 +85,12 @@ pub struct DetectedLib {
     pub path: String,
     #[allow(dead_code)]
     pub package_name: Option<String>,
+    /// Scripts from package.json
+    pub scripts: IndexMap<String, String>,
+    /// Dependencies from package.json
+    pub deps: IndexMap<String, String>,
+    /// Dev dependencies from package.json
+    pub dev_deps: IndexMap<String, String>,
 }
 
 /// Detected docker-compose file
@@ -108,10 +120,11 @@ pub fn run() -> Result<DiscoveryResult> {
     println!("{}", "🔍 Discovering project structure...".bright_blue());
     println!();
 
-    let apps = scan_apps()?;
-    let libs = scan_libs()?;
-    let compose_files = find_compose_files()?;
+    // Extract catalog first (needed for package info extraction)
     let catalog = extract_catalog()?;
+    let apps = scan_apps(&catalog)?;
+    let libs = scan_libs(&catalog)?;
+    let compose_files = find_compose_files()?;
 
     let result = DiscoveryResult {
         apps,
@@ -200,7 +213,7 @@ fn print_discovery_result(result: &DiscoveryResult) {
 }
 
 /// Scan apps/ directory for applications
-fn scan_apps() -> Result<Vec<DetectedApp>> {
+fn scan_apps(catalog: &IndexMap<String, String>) -> Result<Vec<DetectedApp>> {
     let mut apps = Vec::new();
     let apps_dir = Path::new("apps");
 
@@ -226,6 +239,7 @@ fn scan_apps() -> Result<Vec<DetectedApp>> {
         let framework = detect_framework(&path);
         let has_dockerfile = path.join("Dockerfile").exists();
         let package_name = get_package_name(&path);
+        let pkg_info = extract_package_info(&path, catalog);
 
         apps.push(DetectedApp {
             name,
@@ -233,6 +247,9 @@ fn scan_apps() -> Result<Vec<DetectedApp>> {
             framework,
             has_dockerfile,
             package_name,
+            scripts: pkg_info.scripts,
+            deps: pkg_info.deps,
+            dev_deps: pkg_info.dev_deps,
         });
     }
 
@@ -243,7 +260,7 @@ fn scan_apps() -> Result<Vec<DetectedApp>> {
 }
 
 /// Scan libs/ directory for libraries
-fn scan_libs() -> Result<Vec<DetectedLib>> {
+fn scan_libs(catalog: &IndexMap<String, String>) -> Result<Vec<DetectedLib>> {
     let mut libs = Vec::new();
     let libs_dir = Path::new("libs");
 
@@ -252,14 +269,14 @@ fn scan_libs() -> Result<Vec<DetectedLib>> {
     }
 
     // Scan top-level libs
-    scan_libs_in_dir(&libs_dir, "libs", &mut libs)?;
+    scan_libs_in_dir(&libs_dir, "libs", catalog, &mut libs)?;
 
     // Scan nested libs (e.g., libs/supabase/*)
     let nested_dirs = ["supabase"];
     for nested in nested_dirs {
         let nested_path = libs_dir.join(nested);
         if nested_path.exists() && nested_path.is_dir() {
-            scan_libs_in_dir(&nested_path, &format!("libs/{}", nested), &mut libs)?;
+            scan_libs_in_dir(&nested_path, &format!("libs/{}", nested), catalog, &mut libs)?;
         }
     }
 
@@ -270,7 +287,12 @@ fn scan_libs() -> Result<Vec<DetectedLib>> {
 }
 
 /// Helper to scan libraries in a specific directory
-fn scan_libs_in_dir(dir: &Path, prefix: &str, libs: &mut Vec<DetectedLib>) -> Result<()> {
+fn scan_libs_in_dir(
+    dir: &Path,
+    prefix: &str,
+    catalog: &IndexMap<String, String>,
+    libs: &mut Vec<DetectedLib>,
+) -> Result<()> {
     let entries = fs::read_dir(dir).with_context(|| format!("Failed to read {} directory", prefix))?;
 
     for entry in entries.flatten() {
@@ -297,11 +319,15 @@ fn scan_libs_in_dir(dir: &Path, prefix: &str, libs: &mut Vec<DetectedLib>) -> Re
 
         let rel_path = format!("{}/{}", prefix, name);
         let package_name = get_package_name(&path);
+        let pkg_info = extract_package_info(&path, catalog);
 
         libs.push(DetectedLib {
             name,
             path: rel_path,
             package_name,
+            scripts: pkg_info.scripts,
+            deps: pkg_info.deps,
+            dev_deps: pkg_info.dev_deps,
         });
     }
 
@@ -424,6 +450,84 @@ fn find_compose_files() -> Result<Vec<DetectedCompose>> {
     }
 
     Ok(files)
+}
+
+/// Package info extracted from package.json
+#[derive(Debug, Clone, Default)]
+pub struct PackageInfo {
+    pub scripts: IndexMap<String, String>,
+    pub deps: IndexMap<String, String>,
+    pub dev_deps: IndexMap<String, String>,
+}
+
+/// Extract scripts, dependencies, and devDependencies from package.json
+/// Converts catalog-matching packages to "catalog:" references
+fn extract_package_info(dir: &Path, catalog: &IndexMap<String, String>) -> PackageInfo {
+    let pkg_json_path = dir.join("package.json");
+    if !pkg_json_path.exists() {
+        return PackageInfo::default();
+    }
+
+    let content = match fs::read_to_string(&pkg_json_path) {
+        Ok(c) => c,
+        Err(_) => return PackageInfo::default(),
+    };
+
+    let json: Value = match serde_json::from_str(&content) {
+        Ok(j) => j,
+        Err(_) => return PackageInfo::default(),
+    };
+
+    let mut info = PackageInfo::default();
+
+    // Extract scripts
+    if let Some(scripts) = json["scripts"].as_object() {
+        for (key, value) in scripts {
+            if let Some(v) = value.as_str() {
+                info.scripts.insert(key.clone(), v.to_string());
+            }
+        }
+    }
+
+    // Extract dependencies, converting catalog matches to "catalog:"
+    if let Some(deps) = json["dependencies"].as_object() {
+        for (name, version) in deps {
+            if let Some(v) = version.as_str() {
+                // Skip workspace: references
+                if v.starts_with("workspace:") {
+                    continue;
+                }
+                // Convert to catalog: if package exists in catalog
+                let resolved = if catalog.contains_key(name) {
+                    "catalog:".to_string()
+                } else {
+                    v.to_string()
+                };
+                info.deps.insert(name.clone(), resolved);
+            }
+        }
+    }
+
+    // Extract devDependencies, converting catalog matches to "catalog:"
+    if let Some(dev_deps) = json["devDependencies"].as_object() {
+        for (name, version) in dev_deps {
+            if let Some(v) = version.as_str() {
+                // Skip workspace: references
+                if v.starts_with("workspace:") {
+                    continue;
+                }
+                // Convert to catalog: if package exists in catalog
+                let resolved = if catalog.contains_key(name) {
+                    "catalog:".to_string()
+                } else {
+                    v.to_string()
+                };
+                info.dev_deps.insert(name.clone(), resolved);
+            }
+        }
+    }
+
+    info
 }
 
 /// Extract catalog entries from root package.json
@@ -600,5 +704,83 @@ mod tests {
         assert_eq!(catalog.get("eslint"), Some(&"^8.0.0".to_string()));
         // workspace: references should be skipped
         assert!(!catalog.contains_key("@workspace/internal"));
+    }
+
+    #[test]
+    fn test_extract_package_info_basic() {
+        let dir = tempdir().unwrap();
+        let pkg_json = r#"{
+            "name": "test-app",
+            "scripts": {
+                "dev": "next dev",
+                "build": "next build"
+            },
+            "dependencies": {
+                "react": "^18.0.0",
+                "next": "^14.0.0"
+            },
+            "devDependencies": {
+                "typescript": "^5.0.0"
+            }
+        }"#;
+        fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let catalog = IndexMap::new();
+        let info = extract_package_info(dir.path(), &catalog);
+
+        assert_eq!(info.scripts.get("dev"), Some(&"next dev".to_string()));
+        assert_eq!(info.scripts.get("build"), Some(&"next build".to_string()));
+        assert_eq!(info.deps.get("react"), Some(&"^18.0.0".to_string()));
+        assert_eq!(info.deps.get("next"), Some(&"^14.0.0".to_string()));
+        assert_eq!(info.dev_deps.get("typescript"), Some(&"^5.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_extract_package_info_with_catalog_conversion() {
+        let dir = tempdir().unwrap();
+        let pkg_json = r#"{
+            "name": "test-app",
+            "dependencies": {
+                "react": "^18.0.0",
+                "lodash": "^4.0.0"
+            },
+            "devDependencies": {
+                "typescript": "^5.0.0"
+            }
+        }"#;
+        fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        // Create a catalog with react and typescript
+        let mut catalog = IndexMap::new();
+        catalog.insert("react".to_string(), "^18.2.0".to_string());
+        catalog.insert("typescript".to_string(), "^5.3.0".to_string());
+
+        let info = extract_package_info(dir.path(), &catalog);
+
+        // react and typescript should be converted to "catalog:"
+        assert_eq!(info.deps.get("react"), Some(&"catalog:".to_string()));
+        assert_eq!(info.dev_deps.get("typescript"), Some(&"catalog:".to_string()));
+        // lodash is not in catalog, should keep original version
+        assert_eq!(info.deps.get("lodash"), Some(&"^4.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_extract_package_info_skips_workspace_refs() {
+        let dir = tempdir().unwrap();
+        let pkg_json = r#"{
+            "name": "test-app",
+            "dependencies": {
+                "react": "^18.0.0",
+                "@workspace/ui": "workspace:*"
+            }
+        }"#;
+        fs::write(dir.path().join("package.json"), pkg_json).unwrap();
+
+        let catalog = IndexMap::new();
+        let info = extract_package_info(dir.path(), &catalog);
+
+        assert_eq!(info.deps.get("react"), Some(&"^18.0.0".to_string()));
+        // workspace: references should be skipped
+        assert!(!info.deps.contains_key("@workspace/ui"));
     }
 }

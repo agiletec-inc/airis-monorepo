@@ -753,40 +753,40 @@ airis generate files
 
 ---
 
-### 🚧 Phase 3: Smart Generation & Orchestration (v0.4.0) - IN PROGRESS
+### ✅ Phase 3: Smart Generation & Orchestration (v1.45) - COMPLETED
 
 **Goal**: Full package.json generation from manifest, multi-compose orchestration
 
 #### 3.1 Package.json Full Generation
-- [ ] Generate individual app package.json files
-- [ ] Project-level scripts definition in manifest
+- [x] Generate individual app package.json files
+- [x] Project-level scripts definition in manifest
   ```toml
-  [[project]]
+  [[app]]
   name = "corporate-site"
-  [project.scripts]
-  dev = "vite dev"
-  build = "vite build"
-  [project.deps]
-  react = "catalog"
-  next = "catalog"
+  path = "apps/corporate-site"
+  kind = "app"
+  framework = "vite"
+  scripts = { "dev" = "vite dev", "build" = "vite build" }
+  deps = { "react" = "catalog:", "vite" = "catalog:" }
+  dev_deps = { "typescript" = "catalog:" }
   ```
-- [ ] Auto-inject catalog references (`"react": "catalog:"`)
-- [ ] Sync scripts from manifest to package.json
-- [ ] Workspace-level vs app-level dependency resolution
+- [x] Auto-inject catalog references (`"react": "catalog:"`)
+- [x] Extract scripts/deps from existing package.json during discovery
+- [x] Workspace-level vs app-level dependency resolution
 
 #### 3.2 Multi-Compose Orchestration
-- [ ] Parse `[orchestration.dev]` section
-- [ ] Support multiple docker-compose.yml files
+- [x] Parse `[orchestration.dev]` section
+- [x] Support multiple docker-compose.yml files
   ```toml
   [orchestration.dev]
   workspace = "workspace/docker-compose.yml"
   supabase = ["supabase/docker-compose.yml", "supabase/docker-compose.override.yml"]
   traefik = "traefik/docker-compose.yml"
   ```
-- [ ] Generate unified `airis up` that starts all compose stacks
-- [ ] Dependency ordering (start supabase before workspace)
+- [x] Generate unified `airis up` that starts all compose stacks
+- [x] Dependency ordering (start supabase before workspace)
 
-**Current Status**: 🟡 Schema defined, implementation pending
+**Status**: ✅ Fully implemented
 
 ---
 
@@ -902,14 +902,15 @@ airis generate files
 | **8. Parallel Build** | ✅ Done | **v1.41** | DAG-based parallel execution, -j flag |
 | **9. LTS Resolution** | ✅ Done | **v1.42** | npm dist-tags for proper LTS versions |
 | **10. Auto-Migration** | ✅ Done | **v1.43** | discover apps/libs, safe migration |
-| 11. K8s Manifests | 📋 Planned | v1.44+ | deployment.yaml, service.yaml generation |
-| 12. Build Matrix | 🔮 Future | v1.50+ | linux/amd64, linux/arm64 cross-build |
+| **11. Smart Generation** | ✅ Done | **v1.45** | [[app]] format, scripts/deps extraction, package.json generation |
+| 12. K8s Manifests | 📋 Planned | v1.45+ | deployment.yaml, service.yaml generation |
+| 13. Build Matrix | 🔮 Future | v1.50+ | linux/amd64, linux/arm64 cross-build |
 
 ---
 
 ## 🎯 Next Steps (What to Work On)
 
-### Immediate (v1.44+)
+### Immediate (v1.45+)
 
 1. **Kubernetes Manifest Generation**
    - `airis bundle --k8s` generates deployment.yaml, service.yaml, ingress.yaml
