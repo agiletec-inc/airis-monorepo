@@ -928,3 +928,138 @@ jobs:
 
 // Note: CARGO_TOML_TEMPLATE removed - Cargo.toml is source of truth for Rust projects
 // Use `airis bump-version` to sync versions between manifest.toml and Cargo.toml
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::Manifest;
+
+    fn minimal_manifest() -> Manifest {
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = []
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        toml::from_str(toml_str).unwrap()
+    }
+
+    #[test]
+    fn test_compose_context_default_volumes() {
+        let manifest = minimal_manifest();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let workspace_volumes = context["workspace_volumes"].as_array().unwrap();
+        let volume_names = context["volume_names"].as_array().unwrap();
+
+        // Should have 8 default volumes
+        assert_eq!(workspace_volumes.len(), 8);
+        assert_eq!(volume_names.len(), 8);
+
+        // Check default volume format
+        assert_eq!(workspace_volumes[0], "node_modules:/app/node_modules");
+        assert_eq!(workspace_volumes[1], "next_build:/app/.next");
+
+        // Check volume names extraction
+        assert_eq!(volume_names[0], "node_modules");
+        assert_eq!(volume_names[1], "next_build");
+    }
+
+    #[test]
+    fn test_compose_context_custom_volumes() {
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = ["custom_vol:/app/custom", "data_vol:/app/data"]
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let workspace_volumes = context["workspace_volumes"].as_array().unwrap();
+        let volume_names = context["volume_names"].as_array().unwrap();
+
+        // Should use custom volumes, not defaults
+        assert_eq!(workspace_volumes.len(), 2);
+        assert_eq!(volume_names.len(), 2);
+
+        assert_eq!(workspace_volumes[0], "custom_vol:/app/custom");
+        assert_eq!(workspace_volumes[1], "data_vol:/app/data");
+
+        assert_eq!(volume_names[0], "custom_vol");
+        assert_eq!(volume_names[1], "data_vol");
+    }
+
+    #[test]
+    fn test_compose_template_renders_volumes() {
+        let manifest = minimal_manifest();
+        let engine = TemplateEngine::new().unwrap();
+        let result = engine.render_docker_compose(&manifest).unwrap();
+
+        // Should contain volume mounts in services section
+        assert!(result.contains("- node_modules:/app/node_modules"));
+        assert!(result.contains("- next_build:/app/.next"));
+
+        // Should contain volume declarations
+        assert!(result.contains("volumes:"));
+        assert!(result.contains("  node_modules:"));
+        assert!(result.contains("  next_build:"));
+    }
+
+    #[test]
+    fn test_compose_template_renders_custom_volumes() {
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = ["my_cache:/app/.cache"]
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let result = engine.render_docker_compose(&manifest).unwrap();
+
+        // Should contain custom volume mount
+        assert!(result.contains("- my_cache:/app/.cache"));
+
+        // Should NOT contain default volumes
+        assert!(!result.contains("- node_modules:/app/node_modules"));
+
+        // Should declare custom volume
+        assert!(result.contains("  my_cache:"));
+    }
+}
