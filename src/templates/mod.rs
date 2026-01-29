@@ -1062,4 +1062,132 @@ workspaces = ["apps/*", "libs/*"]
         // Should declare custom volume
         assert!(result.contains("  my_cache:"));
     }
+
+    #[test]
+    fn test_compose_context_different_workdir() {
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/workspace/app"
+volumes = []
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let workspace_volumes = context["workspace_volumes"].as_array().unwrap();
+
+        // Should use the custom workdir in paths
+        assert_eq!(workspace_volumes[0], "node_modules:/workspace/app/node_modules");
+        assert_eq!(workspace_volumes[1], "next_build:/workspace/app/.next");
+    }
+
+    #[test]
+    fn test_compose_context_volume_with_mode() {
+        // Volumes can have :ro or :rw suffix (e.g., "vol:/path:ro")
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = ["config_vol:/app/config:ro", "data_vol:/app/data:rw"]
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let volume_names = context["volume_names"].as_array().unwrap();
+
+        // Should extract only the volume name (before first colon)
+        assert_eq!(volume_names.len(), 2);
+        assert_eq!(volume_names[0], "config_vol");
+        assert_eq!(volume_names[1], "data_vol");
+    }
+
+    #[test]
+    fn test_compose_context_malformed_volume_no_colon() {
+        // Edge case: volume without colon should still work
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = ["just_a_name"]
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let workspace_volumes = context["workspace_volumes"].as_array().unwrap();
+        let volume_names = context["volume_names"].as_array().unwrap();
+
+        // Should handle gracefully - volume is passed through
+        assert_eq!(workspace_volumes.len(), 1);
+        assert_eq!(workspace_volumes[0], "just_a_name");
+
+        // Volume name extraction should still work (takes everything before colon, or whole string)
+        assert_eq!(volume_names.len(), 1);
+        assert_eq!(volume_names[0], "just_a_name");
+    }
+
+    #[test]
+    fn test_compose_context_empty_string_volume() {
+        // Edge case: empty string in volumes array
+        let toml_str = r#"
+[workspace]
+name = "test-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+volumes = ["", "valid_vol:/app/valid"]
+
+[commands]
+dev = "pnpm dev"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let context = engine.prepare_docker_compose_data(&manifest).unwrap();
+
+        let workspace_volumes = context["workspace_volumes"].as_array().unwrap();
+
+        // Should include both (even empty string)
+        assert_eq!(workspace_volumes.len(), 2);
+    }
 }
