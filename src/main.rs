@@ -156,6 +156,9 @@ enum Commands {
     Validate {
         #[command(subcommand)]
         action: ValidateCommands,
+        /// Output results as JSON (for LLM integration)
+        #[arg(long, global = true)]
+        json: bool,
     },
 
     /// Run system health checks
@@ -593,7 +596,7 @@ fn main() -> Result<()> {
             DocsCommands::Wrap { target } => commands::docs::wrap(&target)?,
             DocsCommands::List => commands::docs::list()?,
         },
-        Commands::Validate { action } => {
+        Commands::Validate { action, json } => {
             use commands::validate_cmd::{self, ValidateAction};
 
             let validate_action = match action {
@@ -606,7 +609,7 @@ fn main() -> Result<()> {
                 ValidateCommands::All => ValidateAction::All,
             };
 
-            validate_cmd::run(validate_action)?;
+            validate_cmd::run(validate_action, json)?;
         }
         Commands::Verify => commands::verify::run()?,
         Commands::Doctor { fix } => commands::doctor::run(fix)?,

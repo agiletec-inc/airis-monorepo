@@ -5,6 +5,7 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use regex::Regex;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -24,8 +25,34 @@ pub enum ValidateAction {
     All,
 }
 
+/// Structured validation result for JSON output
+#[derive(Serialize)]
+pub struct ValidationResult {
+    pub valid: bool,
+    pub checks: Vec<ValidationCheck>,
+    pub summary: String,
+}
+
+#[derive(Serialize)]
+pub struct ValidationCheck {
+    pub name: String,
+    pub passed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix: Option<String>,
+}
+
 /// Run validation
-pub fn run(action: ValidateAction) -> Result<()> {
+pub fn run(action: ValidateAction, json_output: bool) -> Result<()> {
+    if json_output {
+        run_json(action)
+    } else {
+        run_human(action)
+    }
+}
+
+fn run_human(action: ValidateAction) -> Result<()> {
     match action {
         ValidateAction::Ports => validate_ports(),
         ValidateAction::Networks => validate_networks(),
@@ -72,6 +99,67 @@ pub fn run(action: ValidateAction) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn run_json(action: ValidateAction) -> Result<()> {
+    let mut checks = Vec::new();
+
+    // Run the requested validations and collect results
+    let actions: Vec<(&str, Box<dyn Fn() -> Result<()>>, &str)> = match action {
+        ValidateAction::Manifest => vec![
+            ("manifest", Box::new(validate_manifest) as Box<dyn Fn() -> Result<()>>, "Run `airis init` to regenerate manifest.toml"),
+        ],
+        ValidateAction::Ports => vec![
+            ("ports", Box::new(validate_ports), "Use `expose:` instead of `ports:` in docker-compose.yml"),
+        ],
+        ValidateAction::Networks => vec![
+            ("networks", Box::new(validate_networks), "Check Traefik network configuration"),
+        ],
+        ValidateAction::Env => vec![
+            ("env", Box::new(validate_env), "Check .env files for disallowed public keys"),
+        ],
+        ValidateAction::Dependencies | ValidateAction::Architecture => vec![
+            ("dependencies", Box::new(validate_dependencies), "Run `npx dependency-cruiser` to check architecture"),
+        ],
+        ValidateAction::All => vec![
+            ("manifest", Box::new(validate_manifest) as Box<dyn Fn() -> Result<()>>, "Run `airis init` to regenerate"),
+            ("ports", Box::new(validate_ports), "Use `expose:` instead of `ports:`"),
+            ("networks", Box::new(validate_networks), "Check Traefik network config"),
+            ("env", Box::new(validate_env), "Check .env files"),
+            ("dependencies", Box::new(validate_dependencies), "Run dependency-cruiser"),
+        ],
+    };
+
+    for (name, validator, fix_hint) in actions {
+        let result = validator();
+        checks.push(ValidationCheck {
+            name: name.to_string(),
+            passed: result.is_ok(),
+            error: result.as_ref().err().map(|e| e.to_string()),
+            fix: if result.is_err() { Some(fix_hint.to_string()) } else { None },
+        });
+    }
+
+    let all_passed = checks.iter().all(|c| c.passed);
+    let failed_count = checks.iter().filter(|c| !c.passed).count();
+
+    let result = ValidationResult {
+        valid: all_passed,
+        checks,
+        summary: if all_passed {
+            "All validations passed".to_string()
+        } else {
+            format!("{} validation(s) failed", failed_count)
+        },
+    };
+
+    println!("{}", serde_json::to_string_pretty(&result)?);
+
+    if !all_passed {
+        std::process::exit(1);
+    }
+
+    Ok(())
 }
 
 /// Validate that no ports: mapping exists in application docker-compose files

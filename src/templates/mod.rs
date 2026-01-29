@@ -346,6 +346,148 @@ impl TemplateEngine {
         Ok(lines.join("\n"))
     }
 
+    /// Generate LLM context markdown from manifest.toml
+    /// This provides a comprehensive overview for AI assistants
+    pub fn render_llm_context(&self, manifest: &Manifest) -> Result<String> {
+        let mut sections = vec![];
+
+        // Header
+        sections.push(format!(
+            "# {} - LLM Context\n\n\
+             > Auto-generated from manifest.toml. Do not edit directly.\n\n\
+             This document provides context for AI assistants working with this codebase.",
+            manifest.workspace.name
+        ));
+
+        // Project Overview
+        sections.push(format!(
+            "## Project Overview\n\n\
+             - **Name**: {}\n\
+             - **Mode**: {:?}\n\
+             - **Package Manager**: {}\n\
+             - **Docker Image**: {}\n\
+             - **Working Directory**: {}",
+            manifest.workspace.name,
+            manifest.mode,
+            manifest.workspace.package_manager,
+            manifest.workspace.image,
+            manifest.workspace.workdir
+        ));
+
+        // Available Commands
+        if !manifest.commands.is_empty() {
+            let mut cmd_lines = vec!["## Available Commands\n".to_string()];
+            cmd_lines.push("Run these with `airis <command>` or `airis run <command>`:\n".to_string());
+            cmd_lines.push("| Command | Action |".to_string());
+            cmd_lines.push("|---------|--------|".to_string());
+            for (name, cmd) in &manifest.commands {
+                cmd_lines.push(format!("| `{}` | `{}` |", name, cmd));
+            }
+            sections.push(cmd_lines.join("\n"));
+        }
+
+        // Guards (blocked commands)
+        if !manifest.guards.deny.is_empty() || !manifest.guards.forbid.is_empty() {
+            let mut guard_lines = vec!["## Guards (Blocked Commands)\n".to_string()];
+            if !manifest.guards.deny.is_empty() {
+                guard_lines.push(format!(
+                    "**Denied for all users**: `{}`",
+                    manifest.guards.deny.join("`, `")
+                ));
+            }
+            if !manifest.guards.forbid.is_empty() {
+                guard_lines.push(format!(
+                    "\n**Forbidden for LLMs**: `{}`",
+                    manifest.guards.forbid.join("`, `")
+                ));
+            }
+            if !manifest.guards.danger.is_empty() {
+                guard_lines.push(format!(
+                    "\n**Dangerous commands**: `{}`",
+                    manifest.guards.danger.join("`, `")
+                ));
+            }
+            sections.push(guard_lines.join("\n"));
+        }
+
+        // Command Remapping
+        if !manifest.remap.is_empty() {
+            let mut remap_lines = vec!["## Command Remapping\n".to_string()];
+            remap_lines.push("These commands are automatically translated:\n".to_string());
+            remap_lines.push("| From | To |".to_string());
+            remap_lines.push("|------|-----|".to_string());
+            for (from, to) in &manifest.remap {
+                remap_lines.push(format!("| `{}` | `{}` |", from, to));
+            }
+            sections.push(remap_lines.join("\n"));
+        }
+
+        // Apps
+        if !manifest.apps.is_empty() {
+            let mut app_lines = vec!["## Applications\n".to_string()];
+            for (name, app) in &manifest.apps {
+                app_lines.push(format!(
+                    "- **{}** ({}): `apps/{}`",
+                    name,
+                    app.app_type.as_deref().unwrap_or("unknown"),
+                    name
+                ));
+            }
+            sections.push(app_lines.join("\n"));
+        }
+
+        // Libs
+        if !manifest.libs.is_empty() {
+            let mut lib_lines = vec!["## Libraries\n".to_string()];
+            for (name, lib) in &manifest.libs {
+                let default_path = format!("libs/{}", name);
+                let path = lib.path.as_deref().unwrap_or(&default_path);
+                lib_lines.push(format!("- **{}**: `{}`", name, path));
+            }
+            sections.push(lib_lines.join("\n"));
+        }
+
+        // Environment Variables
+        if !manifest.env.required.is_empty() || !manifest.env.optional.is_empty() {
+            let mut env_lines = vec!["## Environment Variables\n".to_string()];
+            if !manifest.env.required.is_empty() {
+                env_lines.push("**Required**:".to_string());
+                for var in &manifest.env.required {
+                    let desc = manifest.env.validation.get(var)
+                        .and_then(|v| v.description.as_ref())
+                        .map(|d| format!(" - {}", d))
+                        .unwrap_or_default();
+                    env_lines.push(format!("- `{}`{}", var, desc));
+                }
+            }
+            if !manifest.env.optional.is_empty() {
+                env_lines.push("\n**Optional**:".to_string());
+                for var in &manifest.env.optional {
+                    env_lines.push(format!("- `{}`", var));
+                }
+            }
+            sections.push(env_lines.join("\n"));
+        }
+
+        // Workspaces
+        if !manifest.packages.workspaces.is_empty() {
+            sections.push(format!(
+                "## Workspace Structure\n\n\
+                 Monorepo packages: `{}`",
+                manifest.packages.workspaces.join("`, `")
+            ));
+        }
+
+        // Footer
+        sections.push(
+            "---\n\n\
+             *Generated by airis-workspace. See manifest.toml for full configuration.*"
+                .to_string(),
+        );
+
+        Ok(sections.join("\n\n"))
+    }
+
     fn prepare_pnpm_workspace_data(
         &self,
         manifest: &Manifest,
@@ -1315,5 +1457,66 @@ workspaces = ["apps/*", "libs/*"]
         assert!(result.contains("# Auto-generated by airis init"));
         assert!(!result.contains("# Required environment variables"));
         assert!(!result.contains("# Optional environment variables"));
+    }
+
+    #[test]
+    fn test_render_llm_context() {
+        let toml_str = r#"
+[workspace]
+name = "my-project"
+service = "workspace"
+image = "node:22-alpine"
+workdir = "/app"
+
+[commands]
+dev = "pnpm dev"
+build = "pnpm build"
+test = "pnpm test"
+
+[guards]
+deny = ["npm", "yarn"]
+forbid = ["rm -rf /"]
+
+[remap]
+"npm install" = "airis install"
+
+[versioning]
+strategy = "manual"
+
+[packages]
+workspaces = ["apps/*", "libs/*"]
+
+[env]
+required = ["DATABASE_URL"]
+optional = ["DEBUG"]
+"#;
+        let manifest: Manifest = toml::from_str(toml_str).unwrap();
+        let engine = TemplateEngine::new().unwrap();
+        let result = engine.render_llm_context(&manifest).unwrap();
+
+        // Should contain project overview
+        assert!(result.contains("# my-project - LLM Context"));
+        assert!(result.contains("**Name**: my-project"));
+
+        // Should contain commands table
+        assert!(result.contains("## Available Commands"));
+        assert!(result.contains("| `dev` | `pnpm dev` |"));
+        assert!(result.contains("| `build` | `pnpm build` |"));
+
+        // Should contain guards
+        assert!(result.contains("## Guards"));
+        assert!(result.contains("**Denied for all users**: `npm`, `yarn`"));
+
+        // Should contain remap
+        assert!(result.contains("## Command Remapping"));
+        assert!(result.contains("| `npm install` | `airis install` |"));
+
+        // Should contain env vars
+        assert!(result.contains("## Environment Variables"));
+        assert!(result.contains("- `DATABASE_URL`"));
+
+        // Should contain workspace structure
+        assert!(result.contains("## Workspace Structure"));
+        assert!(result.contains("`apps/*`, `libs/*`"));
     }
 }

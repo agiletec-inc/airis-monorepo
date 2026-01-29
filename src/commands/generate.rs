@@ -171,6 +171,9 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
         false
     };
 
+    // Generate LLM context for AI assistants
+    generate_llm_context(manifest, &engine)?;
+
     println!();
     println!("{}", "✅ Generated files:".green());
     println!("   - package.json (with workspaces)");
@@ -191,6 +194,7 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     if env_example_generated {
         println!("   - .env.example");
     }
+    println!("   - .workspace/llm-context.md");
     println!();
     println!("{}", "Next steps:".bright_yellow());
     println!("  1. Run `airis up` to start the workspace");
@@ -336,6 +340,23 @@ fn generate_env_example(manifest: &Manifest, engine: &TemplateEngine) -> Result<
         .with_context(|| "Failed to write .env.example")?;
 
     println!("   {} Generated .env.example from [env] section", "📄".green());
+
+    Ok(())
+}
+
+fn generate_llm_context(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+    let content = engine.render_llm_context(manifest)?;
+
+    // Create .workspace directory if needed
+    let workspace_dir = Path::new(".workspace");
+    fs::create_dir_all(workspace_dir)
+        .context("Failed to create .workspace directory")?;
+
+    let path = workspace_dir.join("llm-context.md");
+    fs::write(&path, &content)
+        .with_context(|| "Failed to write .workspace/llm-context.md")?;
+
+    println!("   {} Generated .workspace/llm-context.md for AI assistants", "🤖".green());
 
     Ok(())
 }
