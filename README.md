@@ -825,23 +825,24 @@ airis generate files
 
 ---
 
-### 📋 Phase 5: LLM Integration (v0.6.0) - PLANNED
+### ✅ Phase 5: LLM Integration (v1.52) - COMPLETED
 
 **Goal**: Make airis-workspace the ultimate LLM-friendly monorepo tool
 
 #### 5.1 LLM Context Generation
-- [ ] Generate `.workspace/llm-context.md` from manifest
-- [ ] Include project structure, available commands, rules
-- [ ] Auto-update on `airis init`
+- [x] Generate `.workspace/llm-context.md` from manifest
+- [x] Include project structure, available commands, guards, remap
+- [x] Include apps, libs, env vars, workspace structure
+- [x] Auto-generate on `airis generate files`
 
-#### 5.2 Error Message Optimization
-- [ ] Structured error output (JSON mode for LLMs)
-- [ ] Actionable fix suggestions
-- [ ] Link to relevant manifest sections
+#### 5.2 Structured Error Output
+- [x] `airis validate --json` for machine-readable output
+- [x] Actionable fix suggestions in JSON response
+- [x] ValidationResult with checks array and summary
 
 **Note**: MCP server integration is handled by [airis-mcp-gateway](https://github.com/agiletec-inc/airis-mcp-gateway). This repo focuses solely on monorepo management.
 
-**Status**: Design phase
+**Status**: ✅ LLM-friendly features implemented
 
 ---
 
@@ -907,7 +908,8 @@ airis generate files
 | **11. Smart Generation** | ✅ Done | **v1.45** | [[app]] format, scripts/deps extraction, package.json generation |
 | **12. K8s Manifests** | ✅ Done | **v1.47** | deployment.yaml, service.yaml generation (--k8s flag) |
 | **13. Validation & Safety** | ✅ Done | **v1.51** | [env] section, validate manifest, .env.example |
-| 14. Build Matrix | 🔮 Future | v1.55+ | linux/amd64, linux/arm64 cross-build |
+| **14. LLM Integration** | ✅ Done | **v1.52** | llm-context.md, validate --json |
+| 15. Build Matrix | 🔮 Future | v1.55+ | linux/amd64, linux/arm64 cross-build |
 
 ---
 

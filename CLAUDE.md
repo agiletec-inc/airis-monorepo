@@ -218,9 +218,11 @@ When adding features:
 ## Future Implementation Notes
 
 **Planned but not yet implemented** (see README.md Phases):
-- LLM context generation (`.workspace/llm-context.md`)
+- Build matrix (linux/amd64, linux/arm64 cross-build)
 
 **Recently implemented**:
+- ✅ LLM context generation (`.workspace/llm-context.md`, v1.52)
+- ✅ Structured error output (`airis validate --json`, v1.52)
 - ✅ Environment variable validation (`[env]` section, v1.51)
 - ✅ Kubernetes manifest generation (`--k8s` flag, v1.47)
 
