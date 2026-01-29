@@ -218,9 +218,11 @@ When adding features:
 ## Future Implementation Notes
 
 **Planned but not yet implemented** (see README.md Phases):
-- Environment variable validation
-- LLM context generation
-- Kubernetes manifest generation
+- LLM context generation (`.workspace/llm-context.md`)
+
+**Recently implemented**:
+- ✅ Environment variable validation (`[env]` section, v1.51)
+- ✅ Kubernetes manifest generation (`--k8s` flag, v1.47)
 
 **Note**: MCP server integration is handled by [airis-mcp-gateway](https://github.com/agiletec-inc/airis-mcp-gateway). This repo focuses on monorepo management only.
 

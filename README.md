@@ -790,17 +790,17 @@ airis generate files
 
 ---
 
-### 📋 Phase 4: Validation & Safety (v0.5.0) - PLANNED
+### ✅ Phase 4: Validation & Safety (v1.51) - COMPLETED
 
 #### 4.1 Configuration Validation
-- [ ] `airis validate` command
-- [ ] Check manifest.toml syntax
-- [ ] Validate app paths exist
-- [ ] Validate port conflicts
-- [ ] Validate catalog references in package.json
+- [x] `airis validate manifest` command
+- [x] Check manifest.toml syntax (parse validation)
+- [x] Validate app/lib paths exist
+- [x] Validate port conflicts in services
+- [ ] Validate catalog references in package.json (future)
 
 #### 4.2 Environment Variable Validation
-- [ ] Define required env vars in manifest
+- [x] Define required/optional env vars in manifest
   ```toml
   [env]
   required = ["DATABASE_URL", "API_KEY"]
@@ -809,17 +809,19 @@ airis generate files
   [env.validation.DATABASE_URL]
   pattern = "^postgresql://"
   description = "PostgreSQL connection string"
+  example = "postgresql://user:pass@localhost:5432/db"
   ```
-- [ ] Runtime validation before `airis up`
-- [ ] Auto-generate `.env.example`
+- [x] Validate required env vars are set (shell or .env)
+- [x] Validate env var patterns using regex
+- [x] Auto-generate `.env.example` from [env] section
 
 #### 4.3 Drift Detection
-- [ ] `airis doctor` command
-- [ ] Detect manual edits to generated files
-- [ ] Suggest re-running `airis init`
-- [ ] Warn if pnpm-workspace.yaml catalog diverges from manifest
+- [x] `airis doctor` command
+- [x] Detect manual edits to generated files
+- [x] Auto-repair with `airis doctor --fix`
+- [x] Warn if generated files diverge from manifest
 
-**Priority**: High (prevents runtime errors)
+**Status**: ✅ Core validation features implemented
 
 ---
 
@@ -903,8 +905,9 @@ airis generate files
 | **9. LTS Resolution** | ✅ Done | **v1.42** | npm dist-tags for proper LTS versions |
 | **10. Auto-Migration** | ✅ Done | **v1.43** | discover apps/libs, safe migration |
 | **11. Smart Generation** | ✅ Done | **v1.45** | [[app]] format, scripts/deps extraction, package.json generation |
-| 12. K8s Manifests | 📋 Planned | v1.45+ | deployment.yaml, service.yaml generation |
-| 13. Build Matrix | 🔮 Future | v1.50+ | linux/amd64, linux/arm64 cross-build |
+| **12. K8s Manifests** | ✅ Done | **v1.47** | deployment.yaml, service.yaml generation (--k8s flag) |
+| **13. Validation & Safety** | ✅ Done | **v1.51** | [env] section, validate manifest, .env.example |
+| 14. Build Matrix | 🔮 Future | v1.55+ | linux/amd64, linux/arm64 cross-build |
 
 ---
 
