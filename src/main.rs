@@ -366,6 +366,12 @@ enum Commands {
         #[command(subcommand)]
         action: PolicyCommands,
     },
+
+    /// Dependency graph visualization and analysis
+    Deps {
+        #[command(subcommand)]
+        action: DepsCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -382,6 +388,21 @@ enum PolicyCommands {
         /// Target project (optional)
         project: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum DepsCommands {
+    /// Display ASCII dependency tree
+    Tree,
+    /// Output dependency graph as JSON (for LLM/automation)
+    Json,
+    /// Show dependencies for a specific package
+    Show {
+        /// Package path or name (e.g., apps/web, libs/ui)
+        package: String,
+    },
+    /// Check for circular dependencies and architecture violations
+    Check,
 }
 
 #[derive(Subcommand)]
@@ -973,6 +994,12 @@ fn main() -> Result<()> {
             PolicyCommands::Enforce { project } => {
                 commands::policy::enforce(project.as_deref())?;
             }
+        },
+        Commands::Deps { action } => match action {
+            DepsCommands::Tree => commands::deps::tree()?,
+            DepsCommands::Json => commands::deps::json()?,
+            DepsCommands::Show { package } => commands::deps::show(&package)?,
+            DepsCommands::Check => commands::deps::check()?,
         },
     }
 

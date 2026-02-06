@@ -240,6 +240,7 @@ airis generate files
 - **src/commands/migrate.rs**: Safe migration with backups (v1.43+)
 - **src/commands/guards.rs**: Docker-first guard enforcement
 - **src/commands/affected.rs**: Affected project detection for builds
+- **src/commands/deps.rs**: Dependency graph visualization (`airis deps tree/json/show/check`)
 - **src/commands/clean.rs**: Workspace cleanup
 - **src/commands/new_cmd.rs**: Scaffold new apps/libs
 - **src/commands/docs.rs**: Documentation generation

@@ -2,6 +2,7 @@ pub mod affected;
 pub mod bump_version;
 pub mod bundle;
 pub mod clean;
+pub mod deps;
 pub mod discover;
 pub mod doctor;
 pub mod docs;
