@@ -1,5 +1,5 @@
 # ============================================================
-# airis-workspace Workspace - Monorepo Dev Shell
+# airis-monorepo Workspace - Monorepo Dev Shell
 # ============================================================
 # Provides a single container with pnpm/node toolchain for running
 # monorepo commands (`airis shell`, `airis install`, etc).
@@ -10,7 +10,7 @@
 
 services:
   workspace:
-    container_name: airis-workspace-workspace
+    container_name: airis-monorepo-workspace
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -58,7 +58,7 @@ services:
 
 networks:
   default:
-    name: airis-workspace_default
+    name: airis-monorepo_default
     external: false
   coolify:
     external: true

@@ -7,7 +7,7 @@ use crate::manifest::{DocsMode, Manifest, MANIFEST_FILE};
 
 const CLAUDE_WRAPPER_TEMPLATE: &str = r#"# CLAUDE.md
 
-This file is managed by airis-workspace (manifest.toml).
+This file is managed by airis-monorepo (manifest.toml).
 
 ## Configuration
 
@@ -46,7 +46,7 @@ By centralizing configuration in `manifest.toml`:
 
 const CURSORRULES_WRAPPER_TEMPLATE: &str = r#"# .cursorrules
 
-This file is managed by airis-workspace (manifest.toml).
+This file is managed by airis-monorepo (manifest.toml).
 
 All project-specific rules and constraints are defined in `manifest.toml`.
 

@@ -178,8 +178,12 @@ fn export_docker_image(image_ref: &str, output_path: &Path) -> Result<Option<Pat
 
     println!("📤 Exporting Docker image...");
 
+    let output_path_str = output_path
+        .to_str()
+        .context("Docker image output path contains non-UTF-8 characters")?;
+
     let output = Command::new("docker")
-        .args(["save", "-o", output_path.to_str().unwrap(), image_ref])
+        .args(["save", "-o", output_path_str, image_ref])
         .output()
         .context("Failed to run docker save")?;
 
@@ -209,13 +213,23 @@ fn package_artifacts(root: &Path, project: &str, output_path: &Path) -> Result<O
     println!("📦 Packaging artifacts: {:?}", artifact_dirs);
 
     // Create tar.gz using tar command
-    let mut args = vec!["-czf".to_string(), output_path.to_str().unwrap().to_string()];
+    let output_path_str = output_path
+        .to_str()
+        .context("Artifact output path contains non-UTF-8 characters")?;
+    let root_str = root
+        .to_str()
+        .context("Root path contains non-UTF-8 characters")?;
+
+    let mut args = vec!["-czf".to_string(), output_path_str.to_string()];
 
     for dir in &artifact_dirs {
         let rel_path = dir.strip_prefix(root).unwrap_or(dir);
+        let rel_path_str = rel_path
+            .to_str()
+            .context("Relative artifact path contains non-UTF-8 characters")?;
         args.push("-C".to_string());
-        args.push(root.to_str().unwrap().to_string());
-        args.push(rel_path.to_str().unwrap().to_string());
+        args.push(root_str.to_string());
+        args.push(rel_path_str.to_string());
     }
 
     let output = Command::new("tar")

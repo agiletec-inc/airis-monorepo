@@ -6,7 +6,7 @@
   },
   "dependencies": {},
   "devDependencies": {},
-  "name": "airis-workspace",
+  "name": "airis-monorepo",
   "packageManager": "pnpm@10.22.0",
   "private": true,
   "scripts": {

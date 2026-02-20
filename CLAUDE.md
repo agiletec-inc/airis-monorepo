@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Current Version**: v1.56.0
 
 **AIRIS Ecosystem** (responsibility separation):
-- **airis-workspace** (this repo): Monorepo management only
+- **airis-monorepo** (this repo): Monorepo management only
 - **airis-mcp-gateway**: MCP server connections
 - **airis-agent**: LLM orchestration brain
 

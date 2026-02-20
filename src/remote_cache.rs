@@ -166,8 +166,12 @@ fn s3_put(bucket: &str, key: &str, artifact: &CachedArtifact) -> Result<()> {
     let temp_file = std::env::temp_dir().join(format!("airis-cache-{}.json", uuid_v4()));
     std::fs::write(&temp_file, &content)?;
 
+    let temp_file_str = temp_file
+        .to_str()
+        .context("Temp file path contains non-UTF-8 characters")?;
+
     let output = Command::new("aws")
-        .args(["s3", "cp", temp_file.to_str().unwrap(), &url])
+        .args(["s3", "cp", temp_file_str, &url])
         .output()
         .context("Failed to run aws s3 cp")?;
 
@@ -191,8 +195,12 @@ fn oci_pull(tag: &str) -> Result<Option<CachedArtifact>> {
     let temp_dir = std::env::temp_dir().join(format!("airis-oci-{}", uuid_v4()));
     std::fs::create_dir_all(&temp_dir)?;
 
+    let temp_dir_str = temp_dir
+        .to_str()
+        .context("Temp directory path contains non-UTF-8 characters")?;
+
     let output = Command::new("oras")
-        .args(["pull", tag, "-o", temp_dir.to_str().unwrap()])
+        .args(["pull", tag, "-o", temp_dir_str])
         .output()
         .context("Failed to run oras pull (is oras installed?)")?;
 

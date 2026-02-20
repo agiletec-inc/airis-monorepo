@@ -255,7 +255,7 @@ RUN mkdir -p /app/{node_modules,.pnpm-store,.next,dist,build,out} && \
 
 ## Airis Suite 連携
 
-**airis-workspace (Rust CLI)**:
+**airis-monorepo (Rust CLI)**:
 - manifest.toml → files 生成（READ-ONLY）
 - 高速・確実・予測可能
 

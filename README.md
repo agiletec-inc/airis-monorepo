@@ -6,7 +6,7 @@
 - Write `"latest"` or `"lts"` → automatically resolves to real semver (no more broken tests)
 - LLM breaks your config? → `airis init` self-heals instantly
 
-> **NX and Turborepo were built for humans. airis-workspace is built for AI-assisted development.**
+> **NX and Turborepo were built for humans. airis-monorepo is built for AI-assisted development.**
 >
 > Zero-Config Monorepo Engine for 2025+
 
@@ -59,7 +59,7 @@ AIris Workspace is the **development environment enforcer** of the **AIRIS Suite
 | **[airis-agent](https://github.com/agiletec-inc/airis-agent)** | 🧠 Intelligence layer for all editors (confidence checks, deep research, self-review) | All developers using Claude Code, Cursor, Windsurf, Codex, Gemini CLI |
 | **[airis-mcp-gateway](https://github.com/agiletec-inc/airis-mcp-gateway)** | 🚪 Unified MCP proxy with 90% token reduction via lazy loading | Claude Code users who want faster startup |
 | **[mindbase](https://github.com/agiletec-inc/mindbase)** | 💾 Local cross-session memory with semantic search | Developers who want persistent conversation history |
-| **airis-workspace** (this repo) | 🏗️ Docker-first monorepo manager | Teams building monorepos |
+| **airis-monorepo** (this repo) | 🏗️ Docker-first monorepo manager | Teams building monorepos |
 | **[airiscode](https://github.com/agiletec-inc/airiscode)** | 🖥️ Terminal-first autonomous coding agent | CLI-first developers |
 
 ### MCP Servers (Included via Gateway)
@@ -73,7 +73,7 @@ AIris Workspace is the **development environment enforcer** of the **AIRIS Suite
 # One command installs everything
 curl -fsSL https://raw.githubusercontent.com/agiletec-inc/airis-mcp-gateway/main/scripts/quick-install.sh | bash
 
-# Then start using airis-workspace
+# Then start using airis-monorepo
 cd your-monorepo && airis init
 ```
 
@@ -234,7 +234,7 @@ Users run the installer again to get the latest version. Zero manual release wor
 
 ## 🧠 Design Philosophy: Why Not NX/Turborepo/Bazel?
 
-**airis-workspace is not competing with these tools. It's built for a different era.**
+**airis-monorepo is not competing with these tools. It's built for a different era.**
 
 ### Different Eras, Different Tools
 
@@ -362,7 +362,7 @@ airis policy enforce
 ### Install (Recommended: Unified Installer)
 
 ```bash
-# Installs everything: Gateway + MindBase + airis-workspace
+# Installs everything: Gateway + MindBase + airis-monorepo
 curl -fsSL https://raw.githubusercontent.com/agiletec-inc/airis-mcp-gateway/main/scripts/quick-install.sh | bash
 ```
 
@@ -373,8 +373,8 @@ curl -fsSL https://raw.githubusercontent.com/agiletec-inc/airis-mcp-gateway/main
 For developers who want to build from source:
 
 ```bash
-git clone https://github.com/agiletec-inc/airis-workspace.git
-cd airis-workspace
+git clone https://github.com/agiletec-inc/airis-monorepo.git
+cd airis-monorepo
 cargo install --path .
 ```
 
@@ -827,7 +827,7 @@ airis generate files
 
 ### ✅ Phase 5: LLM Integration (v1.52) - COMPLETED
 
-**Goal**: Make airis-workspace the ultimate LLM-friendly monorepo tool
+**Goal**: Make airis-monorepo the ultimate LLM-friendly monorepo tool
 
 #### 5.1 LLM Context Generation
 - [x] Generate `.workspace/llm-context.md` from manifest
@@ -981,7 +981,7 @@ Hope it helps developers building rapid prototypes with monorepos.
 
 ## ☕ Support This Project
 
-If airis-workspace saves you time or makes your workflow smoother, consider supporting its development:
+If airis-monorepo saves you time or makes your workflow smoother, consider supporting its development:
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/kazukinakad)
 

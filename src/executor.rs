@@ -134,14 +134,21 @@ impl ParallelExecutor {
         };
 
         for task_id in ready_tasks {
-            let task = tasks.get(&task_id).unwrap().clone();
+            let task = match tasks.get(&task_id) {
+                Some(t) => t.clone(),
+                None => {
+                    // This should never happen as we just collected ready task IDs
+                    eprintln!("Internal error: task not found: {}", task_id);
+                    continue;
+                }
+            };
             let semaphore = Arc::clone(&semaphore);
             let tx = tx.clone();
             let states = Arc::clone(&states);
             let task_fn = task_fn.clone();
 
             tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
+                let _permit = semaphore.acquire().await.expect("semaphore closed unexpectedly");
 
                 // Mark as running
                 {
@@ -215,7 +222,11 @@ impl ParallelExecutor {
                                 let states_guard = states.lock().await;
 
                                 // Check if all dependencies are completed
-                                let dep_task = tasks.get(dep_id).unwrap();
+                                let Some(dep_task) = tasks.get(dep_id) else {
+                                    // This should never happen as dep_id comes from dependents map
+                                    eprintln!("Internal error: dependent task not found during state check: {}", dep_id);
+                                    continue;
+                                };
                                 let all_deps_done = dep_task.dependencies.iter().all(|d| {
                                     matches!(
                                         states_guard.get(d),
@@ -238,14 +249,21 @@ impl ParallelExecutor {
                                     states_guard.insert(dep_id.clone(), TaskState::Ready);
                                 }
 
-                                let task = tasks.get(dep_id).unwrap().clone();
+                                let task = match tasks.get(dep_id) {
+                                    Some(t) => t.clone(),
+                                    None => {
+                                        // This should never happen as dep_id comes from dependents map
+                                        eprintln!("Internal error: dependent task not found: {}", dep_id);
+                                        continue;
+                                    }
+                                };
                                 let semaphore = Arc::clone(&semaphore);
                                 let tx = tx.clone();
                                 let states = Arc::clone(&states);
                                 let task_fn = task_fn.clone();
 
                                 tokio::spawn(async move {
-                                    let _permit = semaphore.acquire().await.unwrap();
+                                    let _permit = semaphore.acquire().await.expect("semaphore closed unexpectedly");
 
                                     {
                                         let mut states = states.lock().await;

@@ -1,5 +1,5 @@
 #!/bin/bash
-# airis-workspace pre-commit hook
+# airis-monorepo pre-commit hook
 # Auto-increments version based on commit message
 # Works for both airis projects (manifest.toml) and Rust projects (Cargo.toml)
 
@@ -57,7 +57,7 @@ if command -v airis &> /dev/null; then
     airis bump-version --auto
 else
     echo "⚠️  airis not found. Please install airis or bump version manually."
-    echo "   Run: cargo install --path . (if in airis-workspace)"
+    echo "   Run: cargo install --path . (if in airis-monorepo)"
     exit 1
 fi
 

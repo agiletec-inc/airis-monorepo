@@ -1,4 +1,4 @@
-# Project Index: airis-workspace
+# Project Index: airis-monorepo
 
 **Generated**: 2025-11-14
 **Version**: 0.1.0
@@ -9,7 +9,7 @@
 ## 📁 Project Structure
 
 ```
-airis-workspace/
+airis-monorepo/
 ├── src/
 │   ├── main.rs              # CLI entry point
 │   ├── commands/
@@ -164,7 +164,7 @@ airis-workspace/
 ### `Cargo.toml`
 - **Package**: `airis` 0.1.0
 - **Edition**: 2024 (latest Rust edition)
-- **Binary**: `airis-workspace` (from src/main.rs)
+- **Binary**: `airis-monorepo` (from src/main.rs)
 - **License**: MIT
 - **Keywords**: monorepo, docker, workspace, cli, prototyping
 
@@ -235,8 +235,8 @@ Example configuration with:
 ### Development Setup
 ```bash
 # Clone repository
-git clone https://github.com/agiletec-inc/airis-workspace.git
-cd airis-workspace
+git clone https://github.com/agiletec-inc/airis-monorepo.git
+cd airis-monorepo
 
 # Build debug binary
 cargo build
@@ -254,7 +254,7 @@ cargo install --path .
 mkdir test-workspace && cd test-workspace
 
 # Initialize workspace / sync derived files
-airis-workspace init
+airis-monorepo init
 
 # Verify generated files
 ls -la  # Should see: manifest.toml, workspace.yaml, justfile, package.json, pnpm-workspace.yaml
@@ -270,7 +270,7 @@ just workspace  # Enter container shell
 vim manifest.toml
 
 # Re-sync derived files
-airis-workspace init
+airis-monorepo init
 ```
 
 ---
@@ -340,4 +340,4 @@ airis-workspace init
 
 **Last Updated**: 2025-11-14
 **Maintainer**: Agile Technology <hello@agiletec.jp>
-**Repository**: https://github.com/agiletec-inc/airis-workspace
+**Repository**: https://github.com/agiletec-inc/airis-monorepo

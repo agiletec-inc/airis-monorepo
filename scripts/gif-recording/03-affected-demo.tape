@@ -14,9 +14,9 @@ Set Theme "Catppuccin Mocha"
 Set Padding 20
 Set TypingSpeed 50ms
 
-# Navigate to airis-workspace (a real monorepo)
+# Navigate to airis-monorepo (a real monorepo)
 Hide
-Type "cd /Users/kazuki/github/airis-workspace"
+Type "cd /Users/kazuki/github/airis-monorepo"
 Enter
 Sleep 500ms
 Show

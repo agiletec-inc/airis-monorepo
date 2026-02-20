@@ -101,11 +101,14 @@ fn run_human(action: ValidateAction) -> Result<()> {
     }
 }
 
+/// Type alias for validation action tuple to reduce complexity
+type ValidationAction<'a> = (&'a str, Box<dyn Fn() -> Result<()>>, &'a str);
+
 fn run_json(action: ValidateAction) -> Result<()> {
     let mut checks = Vec::new();
 
     // Run the requested validations and collect results (quiet mode)
-    let actions: Vec<(&str, Box<dyn Fn() -> Result<()>>, &str)> = match action {
+    let actions: Vec<ValidationAction> = match action {
         ValidateAction::Manifest => vec![
             ("manifest", Box::new(|| validate_manifest_impl(true)) as Box<dyn Fn() -> Result<()>>, "Run `airis init` to regenerate manifest.toml"),
         ],

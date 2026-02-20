@@ -3,12 +3,12 @@
 
 [package]
 name = "airis"
-version = "1.59.0"
+version = "1.60.0"
 edition = "2024"
 authors = ["Agile Technology <hello@agiletec.jp>"]
 description = "Docker-first monorepo workspace manager for rapid prototyping"
-homepage = "https://github.com/agiletec-inc/airis-workspace"
-repository = "https://github.com/agiletec-inc/airis-workspace"
+homepage = "https://github.com/agiletec-inc/airis-monorepo"
+repository = "https://github.com/agiletec-inc/airis-monorepo"
 license = "MIT"
 keywords = ["monorepo", "docker", "workspace", "cli", "prototyping"]
 categories = ["command-line-utilities", "development-tools"]
