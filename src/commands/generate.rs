@@ -174,6 +174,12 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
     // Generate LLM context for AI assistants
     generate_llm_context(manifest, &engine)?;
 
+    // Generate CLAUDE.md for Claude Code
+    generate_claude_md(manifest, &engine)?;
+
+    // Generate .envrc for direnv
+    generate_envrc(manifest, &engine)?;
+
     println!();
     println!("{}", "✅ Generated files:".green());
     println!("   - package.json (with workspaces)");
@@ -195,6 +201,8 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
         println!("   - .env.example");
     }
     println!("   - .workspace/llm-context.md");
+    println!("   - CLAUDE.md");
+    println!("   - .envrc");
     println!();
     println!("{}", "Next steps:".bright_yellow());
     println!("  1. Run `airis up` to start the workspace");
@@ -357,6 +365,50 @@ fn generate_llm_context(manifest: &Manifest, engine: &TemplateEngine) -> Result<
         .with_context(|| "Failed to write .workspace/llm-context.md")?;
 
     println!("   {} Generated .workspace/llm-context.md for AI assistants", "🤖".green());
+
+    Ok(())
+}
+
+fn generate_claude_md(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+    let content = engine.render_claude_md(manifest)?;
+    let path = Path::new("CLAUDE.md");
+
+    // Don't overwrite existing CLAUDE.md - write to .md.new for comparison
+    if path.exists() {
+        let new_path = Path::new("CLAUDE.md.new");
+        fs::write(new_path, &content)
+            .with_context(|| "Failed to write CLAUDE.md.new")?;
+        println!(
+            "   {} CLAUDE.md exists → wrote CLAUDE.md.new for comparison",
+            "📄".yellow()
+        );
+    } else {
+        fs::write(path, &content)
+            .with_context(|| "Failed to write CLAUDE.md")?;
+        println!("   {} Generated CLAUDE.md for Claude Code", "🤖".green());
+    }
+
+    Ok(())
+}
+
+fn generate_envrc(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+    let content = engine.render_envrc(manifest)?;
+    let path = Path::new(".envrc");
+
+    // Don't overwrite existing .envrc - write to .envrc.new for comparison
+    if path.exists() {
+        let new_path = Path::new(".envrc.new");
+        fs::write(new_path, &content)
+            .with_context(|| "Failed to write .envrc.new")?;
+        println!(
+            "   {} .envrc exists → wrote .envrc.new for comparison",
+            "📄".yellow()
+        );
+    } else {
+        fs::write(path, &content)
+            .with_context(|| "Failed to write .envrc")?;
+        println!("   {} Generated .envrc for direnv", "📁".green());
+    }
 
     Ok(())
 }
