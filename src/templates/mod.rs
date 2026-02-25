@@ -497,6 +497,93 @@ impl TemplateEngine {
         Ok(sections.join("\n\n"))
     }
 
+    /// Generate missing CLAUDE.md sections for appending
+    /// Used when existing CLAUDE.md lacks airis-specific sections
+    pub fn render_claude_md_sections(&self, manifest: &Manifest, sections: &[&str]) -> Result<String> {
+        let mut output = String::new();
+
+        for (i, section) in sections.iter().enumerate() {
+            if i > 0 {
+                output.push('\n');
+            }
+            match *section {
+                "docker_first" => {
+                    output.push_str(&self.render_docker_first_section(manifest)?);
+                }
+                "commands" => {
+                    output.push_str(&self.render_commands_section(manifest)?);
+                }
+                _ => {}
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Render the Docker First Development section for CLAUDE.md
+    fn render_docker_first_section(&self, manifest: &Manifest) -> Result<String> {
+        let mut lines = vec!["## Docker First Development\n".to_string()];
+
+        // Add guards table
+        if !manifest.guards.deny.is_empty() || !manifest.guards.deny_with_message.is_empty() {
+            lines.push("### Forbidden → Alternative Commands\n".to_string());
+            lines.push("| Forbidden | Alternative |".to_string());
+            lines.push("|-----------|-------------|".to_string());
+
+            // Add deny commands
+            for cmd in &manifest.guards.deny {
+                let alt = manifest
+                    .remap
+                    .get(cmd)
+                    .map(|s| format!("`{}`", s))
+                    .unwrap_or_else(|| "Use airis CLI".to_string());
+                lines.push(format!("| `{}` | {} |", cmd, alt));
+            }
+
+            // Add deny_with_message commands
+            for (cmd, msg) in &manifest.guards.deny_with_message {
+                lines.push(format!("| `{}` | {} |", cmd, msg));
+            }
+            lines.push(String::new());
+        }
+
+        // Command Remapping
+        if !manifest.remap.is_empty() {
+            lines.push("### Command Remapping\n".to_string());
+            lines.push("| From | To |".to_string());
+            lines.push("|------|-----|".to_string());
+            for (from, to) in &manifest.remap {
+                lines.push(format!("| `{}` | `{}` |", from, to));
+            }
+            lines.push(String::new());
+        }
+
+        // Allowed Commands (host OK)
+        lines.push("### Allowed Commands (Host OK)\n".to_string());
+        lines.push("`airis *`, `git`, `gh`, `doppler`".to_string());
+        lines.push(String::new());
+
+        Ok(lines.join("\n"))
+    }
+
+    /// Render the Available Commands section for CLAUDE.md
+    fn render_commands_section(&self, manifest: &Manifest) -> Result<String> {
+        let mut lines = vec!["## Available Commands\n".to_string()];
+
+        if !manifest.commands.is_empty() {
+            lines.push("| Command | Action |".to_string());
+            lines.push("|---------|--------|".to_string());
+            for (name, cmd) in &manifest.commands {
+                lines.push(format!("| `airis {}` | `{}` |", name, cmd));
+            }
+        } else {
+            lines.push("No commands defined in manifest.toml [commands] section.".to_string());
+        }
+        lines.push(String::new());
+
+        Ok(lines.join("\n"))
+    }
+
     /// Generate .envrc for direnv
     /// Adds .airis/bin to PATH and sets COMPOSE_PROJECT_NAME
     pub fn render_envrc(&self, manifest: &Manifest) -> Result<String> {
