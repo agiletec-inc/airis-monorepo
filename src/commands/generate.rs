@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
+use dialoguer::Confirm;
 use indexmap::IndexMap;
 use std::env;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use crate::commands::sync_deps::resolve_version;
@@ -370,45 +372,135 @@ fn generate_llm_context(manifest: &Manifest, engine: &TemplateEngine) -> Result<
 }
 
 fn generate_claude_md(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
-    let content = engine.render_claude_md(manifest)?;
     let path = Path::new("CLAUDE.md");
 
-    // Don't overwrite existing CLAUDE.md - write to .md.new for comparison
     if path.exists() {
-        let new_path = Path::new("CLAUDE.md.new");
-        fs::write(new_path, &content)
-            .with_context(|| "Failed to write CLAUDE.md.new")?;
+        // Analyze existing file for airis-specific sections
+        let existing_content = fs::read_to_string(path)
+            .with_context(|| "Failed to read CLAUDE.md")?;
+        let existing_lower = existing_content.to_lowercase();
+
+        let mut missing_sections = Vec::new();
+
+        // Check for Docker First section
+        // Look for: "docker first" phrase, or combination of airis commands
+        let has_docker_first = existing_lower.contains("docker first")
+            || existing_lower.contains("docker-first")
+            || (existing_lower.contains("airis up") && existing_lower.contains("airis shell"));
+        if !has_docker_first {
+            missing_sections.push("docker_first");
+        }
+
+        // Check for Available Commands section
+        // Look for: "available commands", "airis commands", or command table format
+        let has_commands = existing_lower.contains("available commands")
+            || existing_lower.contains("airis commands")
+            || (existing_lower.contains("airis") && existing_lower.contains("| command |"));
+        if !has_commands {
+            missing_sections.push("commands");
+        }
+
+        if missing_sections.is_empty() {
+            println!(
+                "   {} CLAUDE.md exists with airis sections",
+                "✅".green()
+            );
+            return Ok(());
+        }
+
+        // Show missing sections
+        println!();
         println!(
-            "   {} CLAUDE.md exists → wrote CLAUDE.md.new for comparison",
-            "📄".yellow()
+            "{}",
+            "⚠️  CLAUDE.md に以下のセクションが不足しています:".yellow()
         );
-    } else {
-        fs::write(path, &content)
-            .with_context(|| "Failed to write CLAUDE.md")?;
-        println!("   {} Generated CLAUDE.md for Claude Code", "🤖".green());
+        for section in &missing_sections {
+            let name = match *section {
+                "docker_first" => "Docker First Development",
+                "commands" => "Available Commands",
+                _ => section,
+            };
+            println!("   - {}", name);
+        }
+        println!();
+
+        // Check if running interactively (tty available)
+        let is_interactive = std::io::stdin().is_terminal();
+
+        let should_append = if is_interactive {
+            // Interactive: ask user
+            Confirm::new()
+                .with_prompt("これらのセクションを CLAUDE.md に追記しますか？")
+                .default(true)
+                .interact()
+                .unwrap_or(true)
+        } else {
+            // Non-interactive (Claude Code / CI): auto-append
+            true
+        };
+
+        if should_append {
+            // Generate content for missing sections
+            let additional_content = engine.render_claude_md_sections(manifest, &missing_sections)?;
+
+            // Append to existing file
+            let mut new_content = existing_content;
+            if !new_content.ends_with('\n') {
+                new_content.push('\n');
+            }
+            new_content.push_str("\n---\n\n");
+            new_content.push_str("<!-- Added by airis generate -->\n\n");
+            new_content.push_str(&additional_content);
+
+            fs::write(path, &new_content)
+                .with_context(|| "Failed to append to CLAUDE.md")?;
+
+            let mode_suffix = if is_interactive {
+                ""
+            } else {
+                " (non-interactive mode)"
+            };
+            println!(
+                "   {} CLAUDE.md に {} セクションを追記しました{}",
+                "✅".green(),
+                missing_sections.len(),
+                mode_suffix
+            );
+        } else {
+            println!(
+                "   {} CLAUDE.md への追記をスキップしました",
+                "⏭️".cyan()
+            );
+        }
+
+        return Ok(());
     }
+
+    // New file generation
+    let content = engine.render_claude_md(manifest)?;
+    fs::write(path, &content)
+        .with_context(|| "Failed to write CLAUDE.md")?;
+    println!("   {} Generated CLAUDE.md for Claude Code", "🤖".green());
 
     Ok(())
 }
 
 fn generate_envrc(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
-    let content = engine.render_envrc(manifest)?;
     let path = Path::new(".envrc");
 
-    // Don't overwrite existing .envrc - write to .envrc.new for comparison
+    // Skip if .envrc already exists (hand-crafted version preferred)
     if path.exists() {
-        let new_path = Path::new(".envrc.new");
-        fs::write(new_path, &content)
-            .with_context(|| "Failed to write .envrc.new")?;
         println!(
-            "   {} .envrc exists → wrote .envrc.new for comparison",
-            "📄".yellow()
+            "   {} .envrc exists, skipping (hand-crafted version preferred)",
+            "⏭️".cyan()
         );
-    } else {
-        fs::write(path, &content)
-            .with_context(|| "Failed to write .envrc")?;
-        println!("   {} Generated .envrc for direnv", "📁".green());
+        return Ok(());
     }
+
+    let content = engine.render_envrc(manifest)?;
+    fs::write(path, &content)
+        .with_context(|| "Failed to write .envrc")?;
+    println!("   {} Generated .envrc for direnv", "📁".green());
 
     Ok(())
 }
