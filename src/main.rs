@@ -382,6 +382,16 @@ enum Commands {
         #[arg(long)]
         stat: bool,
     },
+
+    /// Upgrade airis to the latest version
+    Upgrade {
+        /// Only check for updates (don't install)
+        #[arg(long)]
+        check: bool,
+        /// Install specific version (e.g., 1.60.0)
+        #[arg(long)]
+        version: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1054,6 +1064,13 @@ fn main() -> Result<()> {
                 DiffFormat::Unified
             };
             commands::diff::run(format)?;
+        }
+        Commands::Upgrade { check, version } => {
+            if check {
+                commands::upgrade::run_check()?;
+            } else {
+                commands::upgrade::run(version)?;
+            }
         }
     }
 
