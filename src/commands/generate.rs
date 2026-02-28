@@ -127,19 +127,27 @@ pub fn preview_from_manifest(manifest: &Manifest) -> Result<()> {
 }
 
 /// Sync justfile/docker-compose/package.json from manifest.toml contents
+///
+/// If `force` is true, overwrites existing files directly (used by `doctor --fix`).
+/// If `force` is false, writes to `.md` files for comparison (safe default for `generate files`).
 pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
+    sync_from_manifest_with_force(manifest, false)
+}
+
+/// Sync from manifest with explicit force flag
+pub fn sync_from_manifest_with_force(manifest: &Manifest, force: bool) -> Result<()> {
     // Resolve catalog versions from npm registry
     let resolved_catalog = resolve_catalog_versions(&manifest.packages.catalog)?;
 
     let engine = TemplateEngine::new()?;
     println!("{}", "🧩 Rendering templates...".bright_blue());
-    generate_docker_compose(manifest, &engine)?;
-    generate_package_json(manifest, &engine, &resolved_catalog)?;
+    generate_docker_compose(manifest, &engine, force)?;
+    generate_package_json(manifest, &engine, &resolved_catalog, force)?;
 
     // Generate minimal pnpm-workspace.yaml for pnpm compatibility
     // (npm/yarn/bun use workspaces from package.json)
     if !manifest.packages.workspaces.is_empty() {
-        generate_pnpm_workspace(manifest, &engine)?;
+        generate_pnpm_workspace(manifest, &engine, force)?;
     }
 
     // Check if this is a Rust project (for CI workflow detection)
@@ -151,7 +159,7 @@ pub fn sync_from_manifest(manifest: &Manifest) -> Result<()> {
 
     // Generate GitHub Actions workflows if CI is enabled
     if manifest.ci.enabled {
-        generate_github_workflows(manifest, &engine)?;
+        generate_github_workflows(manifest, &engine, force)?;
     }
 
     // Generate individual app package.json files
@@ -217,12 +225,13 @@ fn generate_package_json(
     manifest: &Manifest,
     engine: &TemplateEngine,
     resolved_catalog: &IndexMap<String, String>,
+    force: bool,
 ) -> Result<()> {
     let path = Path::new("package.json");
     let content = engine.render_package_json(manifest, resolved_catalog)?;
 
-    // Don't overwrite existing package.json - write to .md for comparison
-    if path.exists() {
+    if path.exists() && !force {
+        // Don't overwrite existing package.json - write to .md for comparison
         let md_path = Path::new("package.json.md");
         fs::write(md_path, &content)
             .with_context(|| "Failed to write package.json.md")?;
@@ -232,6 +241,9 @@ fn generate_package_json(
         );
     } else {
         write_with_backup(path, &content)?;
+        if force {
+            println!("   {} package.json (overwritten)", "✓".green());
+        }
     }
     Ok(())
 }
@@ -239,12 +251,13 @@ fn generate_package_json(
 fn generate_pnpm_workspace(
     manifest: &Manifest,
     engine: &TemplateEngine,
+    force: bool,
 ) -> Result<()> {
     let path = Path::new("pnpm-workspace.yaml");
     let content = engine.render_pnpm_workspace(manifest)?;
 
-    // Don't overwrite existing pnpm-workspace.yaml - write to .md for comparison
-    if path.exists() {
+    if path.exists() && !force {
+        // Don't overwrite existing pnpm-workspace.yaml - write to .md for comparison
         let md_path = Path::new("pnpm-workspace.yaml.md");
         fs::write(md_path, &content)
             .with_context(|| "Failed to write pnpm-workspace.yaml.md")?;
@@ -254,6 +267,9 @@ fn generate_pnpm_workspace(
         );
     } else {
         write_with_backup(path, &content)?;
+        if force {
+            println!("   {} pnpm-workspace.yaml (overwritten)", "✓".green());
+        }
     }
     Ok(())
 }
@@ -304,16 +320,15 @@ fn resolve_catalog_versions(
     Ok(resolved)
 }
 
-fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine, force: bool) -> Result<()> {
     let dockerfile_content = engine.render_dockerfile_dev(manifest)?;
     let compose_content = engine.render_docker_compose(manifest)?;
 
-    // If actual files exist, write to .md for comparison (airis init default)
-    // User can review and manually update, or use --force to overwrite
     let dockerfile_path = Path::new("Dockerfile");
     let compose_path = Path::new("docker-compose.yml");
 
-    if dockerfile_path.exists() {
+    if dockerfile_path.exists() && !force {
+        // Write to .md for comparison (safe default)
         let md_path = Path::new("Dockerfile.md");
         fs::write(md_path, &dockerfile_content)
             .with_context(|| "Failed to write Dockerfile.md")?;
@@ -324,9 +339,13 @@ fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Resu
     } else {
         fs::write(dockerfile_path, &dockerfile_content)
             .with_context(|| "Failed to write Dockerfile")?;
+        if force {
+            println!("   {} Dockerfile (overwritten)", "✓".green());
+        }
     }
 
-    if compose_path.exists() {
+    if compose_path.exists() && !force {
+        // Write to .md for comparison (safe default)
         let md_path = Path::new("docker-compose.yml.md");
         fs::write(md_path, &compose_content)
             .with_context(|| "Failed to write docker-compose.yml.md")?;
@@ -337,6 +356,9 @@ fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine) -> Resu
     } else {
         fs::write(compose_path, &compose_content)
             .with_context(|| "Failed to write docker-compose.yml")?;
+        if force {
+            println!("   {} docker-compose.yml (overwritten)", "✓".green());
+        }
     }
 
     Ok(())
@@ -509,15 +531,15 @@ fn generate_envrc(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
 // Cargo.toml is the source of truth for Rust projects and should not be auto-generated
 // Use `airis bump-version` to sync versions between manifest.toml and Cargo.toml
 
-fn generate_github_workflows(manifest: &Manifest, engine: &TemplateEngine) -> Result<()> {
+fn generate_github_workflows(manifest: &Manifest, engine: &TemplateEngine, force: bool) -> Result<()> {
     // Create .github/workflows directory
     let workflows_dir = Path::new(".github/workflows");
     fs::create_dir_all(workflows_dir).context("Failed to create .github/workflows directory")?;
 
-    // Generate ci.yml - don't overwrite existing
+    // Generate ci.yml
     let ci_path = workflows_dir.join("ci.yml");
     let ci_content = engine.render_ci_yml(manifest)?;
-    if ci_path.exists() {
+    if ci_path.exists() && !force {
         let md_path = workflows_dir.join("ci.yml.md");
         fs::write(&md_path, &ci_content)
             .with_context(|| "Failed to write ci.yml.md")?;
@@ -527,12 +549,15 @@ fn generate_github_workflows(manifest: &Manifest, engine: &TemplateEngine) -> Re
         );
     } else {
         write_with_backup(&ci_path, &ci_content)?;
+        if force {
+            println!("   {} .github/workflows/ci.yml (overwritten)", "✓".green());
+        }
     }
 
-    // Generate release.yml - don't overwrite existing
+    // Generate release.yml
     let release_path = workflows_dir.join("release.yml");
     let release_content = engine.render_release_yml(manifest)?;
-    if release_path.exists() {
+    if release_path.exists() && !force {
         let md_path = workflows_dir.join("release.yml.md");
         fs::write(&md_path, &release_content)
             .with_context(|| "Failed to write release.yml.md")?;
@@ -542,6 +567,9 @@ fn generate_github_workflows(manifest: &Manifest, engine: &TemplateEngine) -> Re
         );
     } else {
         write_with_backup(&release_path, &release_content)?;
+        if force {
+            println!("   {} .github/workflows/release.yml (overwritten)", "✓".green());
+        }
     }
 
     Ok(())

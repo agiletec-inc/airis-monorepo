@@ -125,11 +125,11 @@ pub fn run(fix: bool) -> Result<()> {
     println!();
 
     if fix {
-        // Auto-fix by regenerating
+        // Auto-fix by regenerating (force overwrite)
         println!("{}", "🔧 Fixing...".bright_blue());
         println!();
 
-        crate::commands::generate::sync_from_manifest(&manifest)?;
+        crate::commands::generate::sync_from_manifest_with_force(&manifest, true)?;
 
         println!();
         println!("{}", "✨ Workspace healed successfully!".green().bold());
