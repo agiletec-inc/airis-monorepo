@@ -372,6 +372,16 @@ enum Commands {
         #[command(subcommand)]
         action: DepsCommands,
     },
+
+    /// Preview changes between manifest.toml and generated files
+    Diff {
+        /// Output as JSON (for CI/automation)
+        #[arg(long)]
+        json: bool,
+        /// Show statistics only (file count, line changes)
+        #[arg(long)]
+        stat: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1034,6 +1044,17 @@ fn main() -> Result<()> {
             DepsCommands::Show { package } => commands::deps::show(&package)?,
             DepsCommands::Check => commands::deps::check()?,
         },
+        Commands::Diff { json, stat } => {
+            use commands::diff::DiffFormat;
+            let format = if json {
+                DiffFormat::Json
+            } else if stat {
+                DiffFormat::Stat
+            } else {
+                DiffFormat::Unified
+            };
+            commands::diff::run(format)?;
+        }
     }
 
     Ok(())
