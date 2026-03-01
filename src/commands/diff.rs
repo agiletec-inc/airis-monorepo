@@ -110,9 +110,14 @@ fn compute_diff(manifest: &Manifest) -> Result<DiffResult> {
         engine.render_package_json(manifest, &resolved_catalog)?,
     )?);
 
-    // Check docker-compose.yml
+    // Check compose.yml (modern) or docker-compose.yml (legacy)
+    let compose_file = if Path::new("compose.yml").exists() {
+        "compose.yml"
+    } else {
+        "docker-compose.yml"
+    };
     files.push(check_file_with_content(
-        "docker-compose.yml",
+        compose_file,
         engine.render_docker_compose(manifest)?,
     )?);
 

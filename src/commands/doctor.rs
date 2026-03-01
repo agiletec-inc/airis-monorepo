@@ -163,9 +163,14 @@ fn check_generated_files(manifest: &Manifest, issues: &mut Vec<Issue>) -> Result
         )?;
     }
 
-    // Check docker-compose.yml
+    // Check compose.yml (modern) or docker-compose.yml (legacy)
+    let compose_file = if Path::new("compose.yml").exists() {
+        "compose.yml"
+    } else {
+        "docker-compose.yml"
+    };
     check_file(
-        "docker-compose.yml",
+        compose_file,
         || engine.render_docker_compose(manifest),
         issues,
     )?;

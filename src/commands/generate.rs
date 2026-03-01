@@ -93,7 +93,7 @@ pub fn preview_from_manifest(manifest: &Manifest) -> Result<()> {
     let files_to_check = vec![
         ("package.json", true),
         ("Dockerfile", true),
-        ("docker-compose.yml", true),
+        ("compose.yml", true),
         ("pnpm-workspace.yaml", !manifest.packages.workspaces.is_empty()),
         (".github/workflows/ci.yml", manifest.ci.enabled),
         (".github/workflows/release.yml", manifest.ci.enabled),
@@ -194,7 +194,7 @@ pub fn sync_from_manifest_with_force(manifest: &Manifest, force: bool) -> Result
     println!("{}", "✅ Generated files:".green());
     println!("   - package.json (with workspaces)");
     println!("   - Dockerfile.dev");
-    println!("   - docker-compose.yml");
+    println!("   - compose.yml");
     if manifest.ci.enabled {
         println!("   - .github/workflows/ci.yml");
         println!("   - .github/workflows/release.yml");
@@ -325,7 +325,10 @@ fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine, force: 
     let compose_content = engine.render_docker_compose(manifest)?;
 
     let dockerfile_path = Path::new("Dockerfile");
-    let compose_path = Path::new("docker-compose.yml");
+    // Use modern naming (compose.yml), but check for legacy naming too
+    let compose_path = Path::new("compose.yml");
+    let legacy_compose_path = Path::new("docker-compose.yml");
+    let compose_exists = compose_path.exists() || legacy_compose_path.exists();
 
     if dockerfile_path.exists() && !force {
         // Write to .md for comparison (safe default)
@@ -344,20 +347,20 @@ fn generate_docker_compose(manifest: &Manifest, engine: &TemplateEngine, force: 
         }
     }
 
-    if compose_path.exists() && !force {
+    if compose_exists && !force {
         // Write to .md for comparison (safe default)
-        let md_path = Path::new("docker-compose.yml.md");
+        let md_path = Path::new("compose.yml.md");
         fs::write(md_path, &compose_content)
-            .with_context(|| "Failed to write docker-compose.yml.md")?;
+            .with_context(|| "Failed to write compose.yml.md")?;
         println!(
-            "   {} docker-compose.yml exists → wrote docker-compose.yml.md for comparison",
+            "   {} compose.yml exists → wrote compose.yml.md for comparison",
             "📄".yellow()
         );
     } else {
         fs::write(compose_path, &compose_content)
-            .with_context(|| "Failed to write docker-compose.yml")?;
+            .with_context(|| "Failed to write compose.yml")?;
         if force {
-            println!("   {} docker-compose.yml (overwritten)", "✓".green());
+            println!("   {} compose.yml (overwritten)", "✓".green());
         }
     }
 
