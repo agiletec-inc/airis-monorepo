@@ -40,8 +40,6 @@ exclude = [
     "**/.DS_Store",
     "/demo.tape",
     "/pnpm-lock.yaml",
-    "/manifest.toml",
-    "/manifest.md",
     "/compose.yml",
     "/docker-compose.yml",
     "/docker-compose.yml.md",
@@ -65,8 +63,7 @@ exclude = [
 name = "airis-workspace"
 path = "src/main.rs"
 
-# Dependencies are managed manually in this file for now.
-# Future: will be generated from manifest.toml [rust.dependencies]
+# Dependencies are managed manually in this file.
 [dependencies]
 clap = { version = "4.6", features = ["derive", "cargo", "env"] }
 serde = { version = "1.0", features = ["derive"] }

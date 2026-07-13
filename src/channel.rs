@@ -105,7 +105,7 @@ pub struct Toolchain {
 // =============================================================================
 
 /// Current LTS and stable versions (updated periodically)
-/// These are the default values; can be overridden via manifest.toml [toolchain]
+/// These are the default values; override them through the native toolchain.
 #[allow(dead_code)]
 pub(crate) mod defaults {
     // Node.js LTS

@@ -21,8 +21,6 @@ use checkers::{
     check_mock_patterns, check_required_env, check_type_enforcement, scan_secrets,
 };
 
-use crate::manifest::{MANIFEST_FILE, Manifest};
-
 /// Policy configuration from .airis/policies.toml
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PolicyConfig {
@@ -30,6 +28,8 @@ pub struct PolicyConfig {
     pub gates: GatesConfig,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub testing: TestingConfig,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -50,12 +50,33 @@ pub struct GatesConfig {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SecurityConfig {
+    #[serde(default)]
+    pub banned_env_vars: Vec<String>,
+    #[serde(default)]
+    pub allowed_paths: Vec<String>,
     /// Scan for secrets in files
     #[serde(default)]
     pub scan_secrets: bool,
     /// Maximum file size in MB (files larger are skipped)
     #[serde(default = "default_max_file_size")]
     pub max_file_size_mb: u64,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct TestingConfig {
+    #[serde(default)]
+    pub forbidden_patterns: Vec<String>,
+    #[serde(default)]
+    pub type_enforcement: Option<TypeEnforcementConfig>,
+    #[serde(default)]
+    pub ai_rules: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TypeEnforcementConfig {
+    pub generated_types_path: String,
+    #[serde(default)]
+    pub required_imports: Vec<String>,
 }
 
 fn default_max_file_size() -> u64 {
@@ -135,6 +156,15 @@ scan_secrets = true
 
 # Skip files larger than this (MB)
 max_file_size_mb = 50
+
+[testing]
+# Regex patterns forbidden in integration/e2e tests
+forbidden_patterns = []
+
+# Optional generated-type import enforcement for DB-touching tests
+# [testing.type_enforcement]
+# generated_types_path = "libs/database/src/types.ts"
+# required_imports = ["from.*@workspace/database"]
 "#
         .to_string()
     }
@@ -204,43 +234,26 @@ pub fn check(project: Option<&str>) -> Result<PolicyResult> {
         scan_secrets(project, config.security.max_file_size_mb, &mut result)?;
     }
 
-    // 6-8. Governance checks from manifest.toml [policy] (with [testing] fallback)
-    let manifest_path = std::path::Path::new(MANIFEST_FILE);
-    if manifest_path.exists()
-        && let Ok(manifest) = Manifest::load(manifest_path)
-    {
-        let testing = &manifest.policy.testing;
+    if !config.testing.forbidden_patterns.is_empty() {
+        check_mock_patterns(&config.testing.forbidden_patterns, project, &mut result)?;
+    }
 
-        // 6. Forbidden mock pattern scanning
-        if !testing.forbidden_patterns.is_empty() {
-            check_mock_patterns(&testing.forbidden_patterns, project, &mut result)?;
-        }
+    if let Some(type_enforcement) = &config.testing.type_enforcement {
+        check_type_enforcement(
+            &type_enforcement.generated_types_path,
+            &type_enforcement.required_imports,
+            project,
+            &mut result,
+        )?;
+    }
 
-        // 7. Type enforcement (DB tests must import generated types)
-        if let Some(te) = &testing.type_enforcement {
-            check_type_enforcement(
-                &te.generated_types_path,
-                &te.required_imports,
-                project,
-                &mut result,
-            )?;
-        }
-
-        // 8. Banned environment variables (from [policy.security])
-        let security = &manifest.policy.security;
-        if !security.banned_env_vars.is_empty() {
-            check_banned_env_vars(
-                &security.banned_env_vars,
-                &security.allowed_paths,
-                project,
-                &mut result,
-            )?;
-        }
-
-        // Use manifest security settings if available, override .airis/policies.toml
-        if security.scan_secrets && !config.security.scan_secrets {
-            scan_secrets(project, security.max_file_size_mb, &mut result)?;
-        }
+    if !config.security.banned_env_vars.is_empty() {
+        check_banned_env_vars(
+            &config.security.banned_env_vars,
+            &config.security.allowed_paths,
+            project,
+            &mut result,
+        )?;
     }
 
     // Print results

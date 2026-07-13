@@ -1,6 +1,6 @@
 //! Dependency graph (DAG) construction and traversal
 //!
-//! Builds a directed acyclic graph from manifest.toml and pnpm-lock.yaml
+//! Builds a directed acyclic graph from native workspace files and pnpm-lock.yaml
 
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};

@@ -1,10 +1,9 @@
 //! Validate command: workspace configuration validation
 //!
-//! Validates Traefik ports, networks, environment variables, and manifest.toml.
+//! Validates native workspace configuration and project conventions.
 
 mod deps;
 mod env;
-mod manifest_check;
 mod networks;
 mod ports;
 
@@ -17,7 +16,6 @@ use serde::Serialize;
 
 pub use deps::{validate_dependencies, validate_dependencies_impl};
 pub use env::{validate_env, validate_env_impl};
-pub use manifest_check::{validate_manifest, validate_manifest_impl};
 pub use networks::{validate_networks, validate_networks_impl};
 pub use ports::{validate_ports, validate_ports_impl};
 
@@ -28,8 +26,6 @@ pub enum ValidateAction {
     Env,
     Dependencies,
     Architecture,
-    /// Validate manifest.toml syntax, app paths, port conflicts
-    Manifest,
     All,
 }
 
@@ -66,17 +62,11 @@ fn run_human(action: ValidateAction) -> Result<()> {
         ValidateAction::Networks => validate_networks(),
         ValidateAction::Env => validate_env(),
         ValidateAction::Dependencies | ValidateAction::Architecture => validate_dependencies(),
-        ValidateAction::Manifest => validate_manifest(),
         ValidateAction::All => {
             let mut failures = 0;
 
             println!("{}", "🔍 Running all validations...".bright_blue());
             println!();
-
-            if let Err(e) = validate_manifest() {
-                eprintln!("  {} Manifest validation failed: {}", "❌".red(), e);
-                failures += 1;
-            }
 
             if let Err(e) = validate_ports() {
                 eprintln!("  {} Ports validation failed: {}", "❌".red(), e);
@@ -117,11 +107,6 @@ fn run_json(action: ValidateAction) -> Result<()> {
 
     // Run the requested validations and collect results (quiet mode)
     let actions: Vec<ValidationAction> = match action {
-        ValidateAction::Manifest => vec![(
-            "manifest",
-            Box::new(|| validate_manifest_impl(true)) as Box<dyn Fn() -> Result<()>>,
-            "Regenerate via /airis:init (Claude Code) or edit manifest.toml manually",
-        )],
         ValidateAction::Ports => vec![(
             "ports",
             Box::new(|| validate_ports_impl(true)),
@@ -143,11 +128,6 @@ fn run_json(action: ValidateAction) -> Result<()> {
             "Run `npx dependency-cruiser` to check architecture",
         )],
         ValidateAction::All => vec![
-            (
-                "manifest",
-                Box::new(|| validate_manifest_impl(true)) as Box<dyn Fn() -> Result<()>>,
-                "Regenerate via /airis:init (Claude Code) or edit manifest.toml manually",
-            ),
             (
                 "ports",
                 Box::new(|| validate_ports_impl(true)),

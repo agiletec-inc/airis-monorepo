@@ -2,7 +2,7 @@
 //! and extracts external and workspace dependency package names.
 //!
 //! Used by `airis gen` to auto-detect dependencies from source code,
-//! eliminating the need to manually list deps in manifest.toml.
+//! eliminating the need to manually list dependencies in a separate workspace file.
 
 use std::collections::BTreeSet;
 use std::path::Path;

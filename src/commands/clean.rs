@@ -12,7 +12,6 @@ use anyhow::{Result, anyhow};
 use colored::Colorize;
 use glob::glob;
 
-use crate::manifest::{MANIFEST_FILE, Manifest};
 use crate::safe_fs::{SafeAction, SafeFS};
 
 /// Project-root markers used to decide whether the current directory is a
@@ -22,13 +21,21 @@ use crate::safe_fs::{SafeAction, SafeFS};
 /// clean` may legitimately run in any of those repos. If none are present we
 /// abort to avoid wiping `node_modules` / `dist` from arbitrary directories
 /// where the user wandered into.
-const PROJECT_ROOT_MARKERS: &[&str] = &[
-    "manifest.toml",
-    "package.json",
-    "Cargo.toml",
-    "pyproject.toml",
-    "go.mod",
+const PROJECT_ROOT_MARKERS: &[&str] = &["package.json", "Cargo.toml", "pyproject.toml", "go.mod"];
+
+const CLEAN_DIRS: &[&str] = &[
+    ".next",
+    "dist",
+    "build",
+    "out",
+    ".swc",
+    ".cache",
+    ".pnpm-store",
+    ".pnpm-global",
+    "target",
 ];
+
+const CLEAN_RECURSIVE_DIRS: &[&str] = &["node_modules"];
 
 fn is_project_root(dir: &Path) -> bool {
     PROJECT_ROOT_MARKERS
@@ -56,18 +63,6 @@ fn find_compose_file() -> Option<&'static str> {
     None
 }
 
-/// Construct an empty Manifest entirely from `#[serde(default)]` fields.
-///
-/// Used when `manifest.toml` is absent so `airis clean` can still operate on
-/// the canonical build-artifact list without requiring users to run
-/// `airis init` first. We deliberately bypass `Manifest::parse` because its
-/// `validate()` step (e.g. `project.id required`) is meant for user-authored
-/// manifests; an in-memory default never reaches disk and only feeds the
-/// canonical `clean.dirs` / `clean.recursive` lists here.
-fn default_manifest() -> Manifest {
-    toml::from_str("").expect("empty manifest must deserialize via serde defaults — schema bug")
-}
-
 /// Run the clean command
 ///
 /// # Arguments
@@ -87,29 +82,6 @@ pub fn run(dry_run: bool, purge: bool, allow_anywhere: bool) -> Result<()> {
         }
     }
 
-    let manifest_path = Path::new(MANIFEST_FILE);
-    let manifest_present = manifest_path.exists();
-
-    if purge && !manifest_present {
-        return Err(anyhow!(
-            "--purge requires manifest.toml so user-managed compose files \
-             (orchestration.dev) can be protected from deletion. \
-             Create manifest.toml first (see docs/manifest.md), or omit --purge \
-             to clean only build artifacts."
-        ));
-    }
-
-    let manifest = if manifest_present {
-        Manifest::load(manifest_path)?
-    } else {
-        println!(
-            "{}",
-            "⚠️  manifest.toml not found — using default clean rules. Create manifest.toml to customize."
-                .yellow()
-        );
-        default_manifest()
-    };
-
     let safe_fs = SafeFS::current(dry_run)?;
 
     if dry_run {
@@ -128,8 +100,7 @@ pub fn run(dry_run: bool, purge: bool, allow_anywhere: bool) -> Result<()> {
 
     // 1. Build Artifacts Clean (Standard)
     println!("{}", "📦 Build Artifacts".bold());
-    let clean = &manifest.workspace.clean;
-    for dir in &clean.dirs {
+    for dir in CLEAN_DIRS {
         match safe_fs.clean_artifact(dir) {
             Ok(result) => {
                 print_result(&result.action, dir, &mut cleaned, &mut skipped);
@@ -161,14 +132,7 @@ pub fn run(dry_run: bool, purge: bool, allow_anywhere: bool) -> Result<()> {
         ];
 
         // Files that are currently managed and should NOT be deleted
-        let mut managed_files = vec!["manifest.toml".to_string()];
-
-        // Protect the specific compose file defined in orchestration.dev
-        if let Some(dev) = &manifest.orchestration.dev
-            && let Some(workspace) = &dev.workspace
-        {
-            managed_files.push(workspace.clone());
-        }
+        let mut managed_files: Vec<String> = Vec::new();
 
         // Also protect root compose if detected by find_compose_file
         if let Some(root_compose) = find_compose_file() {
@@ -218,7 +182,7 @@ pub fn run(dry_run: bool, purge: bool, allow_anywhere: bool) -> Result<()> {
 
     // 3. Recursive Artifacts
     println!("\n{}", "📂 Recursive Artifacts".bold());
-    for pattern in &clean.recursive {
+    for pattern in CLEAN_RECURSIVE_DIRS {
         // Validate pattern is safe
         if pattern.contains("..") || pattern.starts_with('/') {
             println!("   {} {} (unsafe pattern skipped)", "⏭️".yellow(), pattern);
@@ -413,7 +377,6 @@ mod tests {
 
         // Never clean these
         let protected = [
-            "manifest.toml",
             "package.json",
             "pnpm-lock.yaml",
             "Cargo.toml",
@@ -439,7 +402,6 @@ mod tests {
 
     #[test]
     fn test_protected_paths() {
-        assert!(is_protected_path(Path::new("manifest.toml")));
         assert!(is_protected_path(Path::new("src/main.rs")));
         assert!(is_protected_path(Path::new(".git/config")));
         assert!(is_protected_path(Path::new("apps/dashboard")));
@@ -449,7 +411,7 @@ mod tests {
         assert!(!is_protected_path(Path::new("dist")));
     }
 
-    use super::{PROJECT_ROOT_MARKERS, default_manifest, is_project_root};
+    use super::{PROJECT_ROOT_MARKERS, is_project_root};
     use tempfile::tempdir;
 
     #[test]
@@ -470,19 +432,5 @@ mod tests {
         // A stray build-artifact alone must not be treated as a project root.
         std::fs::create_dir(dir.path().join("node_modules")).expect("mkdir");
         assert!(!is_project_root(dir.path()));
-    }
-
-    #[test]
-    fn default_manifest_provides_canonical_clean_lists() {
-        let manifest = default_manifest();
-        let clean = &manifest.workspace.clean;
-        assert!(
-            clean.dirs.iter().any(|d| d == "dist"),
-            "default clean.dirs should include 'dist'",
-        );
-        assert!(
-            clean.recursive.iter().any(|d| d == "node_modules"),
-            "default clean.recursive should include 'node_modules'",
-        );
     }
 }

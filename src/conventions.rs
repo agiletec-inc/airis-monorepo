@@ -1,7 +1,7 @@
 //! Framework conventions — deterministic lookup tables.
 //!
 //! All defaults are derived from framework + environment, never hardcoded
-//! at call sites. Manifest fields override these conventions.
+//! at call sites. Native repository files and policy provide explicit overrides.
 
 /// Framework-specific default values and Docker volume conventions.
 #[derive(Debug, Clone)]

@@ -16,8 +16,6 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use crate::manifest::{MANIFEST_FILE, Manifest};
-
 use api::generate_api_project;
 use edge::generate_edge_function;
 use lib::generate_lib_project;
@@ -37,15 +35,6 @@ fn get_base_dir(category: &str) -> &str {
 }
 
 /// Resolve runtime alias to full runtime name
-fn resolve_runtime(manifest: &Manifest, runtime: &str) -> String {
-    manifest
-        .runtimes
-        .alias
-        .get(runtime)
-        .cloned()
-        .unwrap_or_else(|| runtime.to_string())
-}
-
 /// Run the new command with runtime selection
 pub fn run_with_runtime(category: &str, name: &str, runtime: &str) -> Result<()> {
     // Validate name
@@ -60,19 +49,7 @@ pub fn run_with_runtime(category: &str, name: &str, runtime: &str) -> Result<()>
         bail!("Project name can only contain alphanumeric characters, hyphens, and underscores");
     }
 
-    // Load manifest if exists (for runtime aliases)
-    let manifest = if Path::new(MANIFEST_FILE).exists() {
-        Some(Manifest::load(MANIFEST_FILE)?)
-    } else {
-        None
-    };
-
-    // Resolve runtime alias
-    let resolved_runtime = if let Some(ref m) = manifest {
-        resolve_runtime(m, runtime)
-    } else {
-        runtime.to_string()
-    };
+    let resolved_runtime = runtime.to_string();
 
     let base_dir = get_base_dir(category);
     let project_dir = Path::new(base_dir).join(name);
@@ -130,8 +107,8 @@ pub fn run_with_runtime(category: &str, name: &str, runtime: &str) -> Result<()>
     println!();
     println!("{}", "Next steps:".bright_yellow());
     println!(
-        "  1. Run {} to regenerate workspace files",
-        "airis workspace gen".cyan()
+        "  1. Run your repository's native install/build command (for example {})",
+        "pnpm install".cyan()
     );
     println!(
         "  2. Install dependencies and start services (e.g. {} / {})",

@@ -3,8 +3,8 @@ use clap::{CommandFactory, Parser};
 use colored::Colorize;
 
 use airis_workspace::cli::{
-    ClaudeCommands, Cli, Commands, DepsCommands, DocsCommands, GenerateCommands, ManifestCommands,
-    NewCommands, PolicyCommands, ValidateCommands, WorkspaceCommands,
+    Cli, Commands, DepsCommands, GenerateCommands, NewCommands, PolicyCommands, ValidateCommands,
+    WorkspaceCommands,
 };
 use airis_workspace::commands;
 
@@ -61,35 +61,16 @@ fn run_main() -> Result<()> {
 /// Dispatch a parsed CLI command to the appropriate handler.
 fn dispatch(command: Commands) -> Result<()> {
     match command {
-        Commands::Manifest { action } => {
-            use commands::manifest_cmd::{self, ManifestAction};
-
-            let manifest_action = match action {
-                ManifestCommands::DevApps => ManifestAction::DevApps,
-                ManifestCommands::Rule { name } => ManifestAction::Rule { name },
-                ManifestCommands::Json => ManifestAction::Json,
-            };
-
-            manifest_cmd::run(manifest_action)?;
-        }
-        Commands::Claude { action } => match action {
-            ClaudeCommands::Setup => commands::claude_setup::setup_global()?,
-            ClaudeCommands::Status => commands::claude_setup::status()?,
-            ClaudeCommands::Uninstall => commands::claude_setup::uninstall()?,
-        },
         Commands::Workspace(args) => match args.action {
             WorkspaceCommands::Uninstall => commands::workspace::uninstall()?,
         },
-        Commands::Docs { action } => match action {
-            DocsCommands::Wrap { target, force } => commands::docs::wrap(&target, force)?,
-            DocsCommands::Sync { force } => commands::docs::sync(force)?,
-            DocsCommands::List => commands::docs::list()?,
-        },
+        Commands::Discover => {
+            commands::discover::run()?;
+        }
         Commands::Validate { action, json } => {
             use commands::validate_cmd::{self, ValidateAction};
 
             let validate_action = match action {
-                ValidateCommands::Manifest => ValidateAction::Manifest,
                 ValidateCommands::Ports => ValidateAction::Ports,
                 ValidateCommands::Networks => ValidateAction::Networks,
                 ValidateCommands::Env => ValidateAction::Env,
@@ -99,18 +80,6 @@ fn dispatch(command: Commands) -> Result<()> {
             };
 
             validate_cmd::run(validate_action, json)?;
-        }
-        Commands::Verify => commands::verify::run()?,
-        Commands::Doctor {
-            fix,
-            truth,
-            truth_json,
-        } => {
-            if truth || truth_json {
-                commands::doctor::run_truth(truth_json)?;
-            } else {
-                commands::doctor::run(fix)?;
-            }
         }
         Commands::Clean {
             dry_run,
@@ -143,13 +112,6 @@ fn dispatch(command: Commands) -> Result<()> {
                 commands::new_cmd::run_with_runtime("supabase-realtime", &name, "deno")?;
             }
         },
-        Commands::Gen {
-            dry_run,
-            force,
-            migrate,
-        } => {
-            commands::generate::run(dry_run, force, migrate)?;
-        }
         Commands::Generate { action } => match action {
             GenerateCommands::Types {
                 host,
@@ -196,17 +158,6 @@ fn dispatch(command: Commands) -> Result<()> {
             DepsCommands::Show { package } => commands::deps::show(&package)?,
             DepsCommands::Check => commands::deps::check()?,
         },
-        Commands::Diff { json, stat } => {
-            use commands::diff::DiffFormat;
-            let format = if json {
-                DiffFormat::Json
-            } else if stat {
-                DiffFormat::Stat
-            } else {
-                DiffFormat::Unified
-            };
-            commands::diff::run(format)?;
-        }
         Commands::Upgrade { check, version } => {
             if check {
                 // Background check already happened, this just triggers immediate check/report

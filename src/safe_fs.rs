@@ -67,7 +67,7 @@ impl SafeFS {
     /// Create a new SafeFS context for the given workspace root
     ///
     /// # Arguments
-    /// * `root` - Workspace root directory (must contain manifest.toml)
+    /// * `root` - Workspace root directory (must contain a native project manifest)
     /// * `dry_run` - If true, operations are simulated but not performed
     ///
     /// # Errors
@@ -80,10 +80,19 @@ impl SafeFS {
             .canonicalize()
             .with_context(|| format!("Workspace root not found: {}", root.display()))?;
 
-        // Verify it's a valid workspace (has manifest.toml)
-        if !root.join("manifest.toml").exists() {
+        // Verify it's a valid workspace using native project files.
+        let has_native_manifest = [
+            "package.json",
+            "pnpm-workspace.yaml",
+            "Cargo.toml",
+            "pyproject.toml",
+            "go.mod",
+        ]
+        .iter()
+        .any(|name| root.join(name).exists());
+        if !has_native_manifest {
             bail!(
-                "Not a valid airis workspace: {} (missing manifest.toml)",
+                "Not a valid project workspace: {} (no native project manifest found)",
                 root.display()
             );
         }
@@ -354,7 +363,6 @@ impl SafeFS {
 
         // Protect critical paths even in clean mode
         let protected = [
-            "manifest.toml",
             "package.json",
             "pnpm-lock.yaml",
             "Cargo.toml",
@@ -487,11 +495,7 @@ mod tests {
 
     fn create_test_workspace() -> tempfile::TempDir {
         let dir = tempdir().unwrap();
-        fs::write(
-            dir.path().join("manifest.toml"),
-            "version = 1\n[project]\nid = \"test\"\n[workspace]\nname = \"test\"",
-        )
-        .unwrap();
+        fs::write(dir.path().join("package.json"), "{}").unwrap();
         dir
     }
 
@@ -576,14 +580,15 @@ mod tests {
         let workspace = create_test_workspace();
         let safe_fs = SafeFS::new(workspace.path(), false).unwrap();
 
-        // Try to delete manifest.toml (user-owned)
-        let result = safe_fs.delete("manifest.toml").unwrap();
+        // Try to delete a user-owned documentation file
+        fs::write(workspace.path().join("README.md"), "user content").unwrap();
+        let result = safe_fs.delete("README.md").unwrap();
 
         // Should be skipped
         assert!(matches!(result.action, SafeAction::Skipped(_)));
 
         // File should still exist
-        assert!(workspace.path().join("manifest.toml").exists());
+        assert!(workspace.path().join("README.md").exists());
     }
 
     #[test]
@@ -600,8 +605,8 @@ mod tests {
         assert!(matches!(result.action, SafeAction::Skipped(_)));
         assert!(workspace.path().join("src").exists());
 
-        // Try to clean manifest.toml (protected)
-        let result = safe_fs.clean_artifact("manifest.toml").unwrap();
+        // Try to clean package.json (protected)
+        let result = safe_fs.clean_artifact("package.json").unwrap();
         assert!(matches!(result.action, SafeAction::Skipped(_)));
     }
 

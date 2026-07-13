@@ -27,19 +27,7 @@ pub fn validate_networks_impl(quiet: bool) -> Result<()> {
     }
 
     let mut failures = 0;
-    // Resolve proxy network from manifest > env var
-    let manifest_proxy =
-        crate::manifest::Manifest::load(std::path::Path::new(crate::manifest::MANIFEST_FILE))
-            .ok()
-            .and_then(|m| {
-                m.orchestration
-                    .networks
-                    .as_ref()
-                    .and_then(|n| n.proxy.clone())
-            });
-    let proxy_network = manifest_proxy
-        .or_else(|| std::env::var("EXTERNAL_PROXY_NETWORK").ok())
-        .unwrap_or_default();
+    let proxy_network = std::env::var("EXTERNAL_PROXY_NETWORK").ok();
 
     for entry in fs::read_dir(apps_dir)? {
         let entry = entry?;
@@ -75,12 +63,9 @@ pub fn validate_networks_impl(quiet: bool) -> Result<()> {
         // Check for required network configurations using simple string matching
         // A more robust solution would use a YAML parser
 
-        // Check for workspace default network (derived from manifest workspace name)
-        let workspace_network =
-            crate::manifest::Manifest::load(std::path::Path::new(crate::manifest::MANIFEST_FILE))
-                .map(|m| format!("{}_default", m.workspace.name))
-                .unwrap_or_else(|_| "default".to_string());
-        if !content.contains(&workspace_network) {
+        // Compose's native default network is the project-local default.
+        let workspace_network = "default";
+        if !content.contains(workspace_network) {
             if !quiet {
                 println!(
                     "  {} {}: networks.default should reference '{}'",
@@ -93,7 +78,10 @@ pub fn validate_networks_impl(quiet: bool) -> Result<()> {
         }
 
         // Check for proxy network
-        if !content.contains(&proxy_network) && !content.contains("EXTERNAL_PROXY_NETWORK") {
+        if let Some(proxy_network) = &proxy_network
+            && !content.contains(proxy_network)
+            && !content.contains("EXTERNAL_PROXY_NETWORK")
+        {
             if !quiet {
                 println!(
                     "  {} {}: networks.proxy should reference '{}' or EXTERNAL_PROXY_NETWORK",
