@@ -1,9 +1,8 @@
 //! Workspace pattern resolution.
 //!
-//! Reads workspace member glob patterns from authoritative sources, in priority:
-//! 1. manifest.toml `[packages].workspaces` (explicit override)
-//! 2. `pnpm-workspace.yaml` `packages:` field
-//! 3. `Cargo.toml` `[workspace] members`
+//! Reads workspace member glob patterns from the repository's native manifests:
+//! 1. `pnpm-workspace.yaml` `packages:` field
+//! 2. `Cargo.toml` `[workspace] members`
 //!
 //! No hardcoded fallback. If none of the above declare workspaces, the caller
 //! treats the repository as a single project (when `package.json`, `Cargo.toml`,
@@ -13,10 +12,7 @@ use std::fs;
 use std::path::Path;
 
 /// Resolve workspace glob patterns from authoritative sources.
-pub fn resolve_patterns(root: &Path, manifest_workspaces: &[String]) -> Vec<String> {
-    if !manifest_workspaces.is_empty() {
-        return manifest_workspaces.to_vec();
-    }
+pub fn resolve_patterns(root: &Path) -> Vec<String> {
     if let Some(p) = read_pnpm_workspace_yaml(root) {
         return p;
     }
@@ -71,26 +67,14 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn manifest_workspaces_take_precedence() {
-        let dir = tempdir().unwrap();
-        fs::write(
-            dir.path().join("pnpm-workspace.yaml"),
-            "packages:\n  - 'apps/*'\n",
-        )
-        .unwrap();
-        let patterns = resolve_patterns(dir.path(), &["custom/*".to_string()]);
-        assert_eq!(patterns, vec!["custom/*"]);
-    }
-
-    #[test]
-    fn pnpm_workspace_yaml_is_read_when_manifest_empty() {
+    fn pnpm_workspace_yaml_is_read() {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("pnpm-workspace.yaml"),
             "packages:\n  - 'apps/*'\n  - 'libs/*'\n",
         )
         .unwrap();
-        let patterns = resolve_patterns(dir.path(), &[]);
+        let patterns = resolve_patterns(dir.path());
         assert_eq!(patterns, vec!["apps/*", "libs/*"]);
     }
 
@@ -102,14 +86,14 @@ mod tests {
             "[workspace]\nmembers = [\"crates/foo\", \"crates/bar\"]\n",
         )
         .unwrap();
-        let patterns = resolve_patterns(dir.path(), &[]);
+        let patterns = resolve_patterns(dir.path());
         assert_eq!(patterns, vec!["crates/foo", "crates/bar"]);
     }
 
     #[test]
     fn empty_when_nothing_declared() {
         let dir = tempdir().unwrap();
-        let patterns = resolve_patterns(dir.path(), &[]);
+        let patterns = resolve_patterns(dir.path());
         assert!(patterns.is_empty());
     }
 
@@ -121,7 +105,7 @@ mod tests {
             "[package]\nname = \"foo\"\nversion = \"0.1.0\"\n",
         )
         .unwrap();
-        let patterns = resolve_patterns(dir.path(), &[]);
+        let patterns = resolve_patterns(dir.path());
         assert!(patterns.is_empty());
     }
 
@@ -138,7 +122,7 @@ mod tests {
             "[workspace]\nmembers = [\"crates/foo\"]\n",
         )
         .unwrap();
-        let patterns = resolve_patterns(dir.path(), &[]);
+        let patterns = resolve_patterns(dir.path());
         assert_eq!(patterns, vec!["apps/*"]);
     }
 

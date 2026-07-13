@@ -250,7 +250,7 @@ pub(crate) fn check_type_enforcement(
     Ok(())
 }
 
-/// Scan test files for forbidden mock patterns (from manifest.toml [testing])
+/// Scan test files for forbidden mock patterns (from .airis/policies.toml [testing])
 ///
 /// Walks integration/e2e test files and checks for patterns like
 /// `vi.mock.*supabase` that indicate mocking of real services.

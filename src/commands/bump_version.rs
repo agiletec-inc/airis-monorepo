@@ -5,8 +5,6 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::manifest::{MANIFEST_FILE, Manifest, VersioningStrategy};
-
 #[derive(Debug, Clone)]
 pub enum BumpMode {
     Auto,  // Detect from commit message
@@ -15,21 +13,9 @@ pub enum BumpMode {
     Patch, // x.y.z
 }
 
-/// Bump version in Cargo.toml only (manifest.toml is NEVER modified)
+/// Bump version in Cargo.toml only.
 /// Version source of truth is git tags
 pub fn run(mode: BumpMode) -> Result<()> {
-    let manifest_path = Path::new(MANIFEST_FILE);
-
-    // Load manifest for versioning strategy only
-    let manifest = if manifest_path.exists() {
-        Some(
-            Manifest::load(manifest_path)
-                .with_context(|| format!("Failed to load {}", MANIFEST_FILE))?,
-        )
-    } else {
-        None
-    };
-
     // Get current version from Cargo.toml (which should be synced from git tags)
     let current_version =
         get_cargo_version()?.ok_or_else(|| anyhow::anyhow!("❌ No version found in Cargo.toml"))?;
@@ -37,25 +23,8 @@ pub fn run(mode: BumpMode) -> Result<()> {
     // Determine bump type
     let new_version = match mode {
         BumpMode::Auto => {
-            // Detect from last commit message or versioning strategy
-            let strategy = manifest
-                .as_ref()
-                .map(|m| m.versioning.strategy.clone())
-                .unwrap_or(VersioningStrategy::Auto);
-
-            match strategy {
-                VersioningStrategy::Manual => {
-                    bail!("❌ Versioning strategy is 'manual'. Use --major, --minor, or --patch.");
-                }
-                VersioningStrategy::Auto => {
-                    // Default to minor bump
-                    bump_version_string(&current_version, "minor")?
-                }
-                VersioningStrategy::ConventionalCommits => {
-                    let commit_msg = get_pending_commit_message()?;
-                    detect_bump_type_from_conventional_commit(&commit_msg, &current_version)?
-                }
-            }
+            let commit_msg = get_pending_commit_message()?;
+            detect_bump_type_from_conventional_commit(&commit_msg, &current_version)?
         }
         BumpMode::Major => bump_version_string(&current_version, "major")?,
         BumpMode::Minor => bump_version_string(&current_version, "minor")?,
@@ -68,7 +37,7 @@ pub fn run(mode: BumpMode) -> Result<()> {
         new_version.green().bold()
     );
 
-    // Update Cargo.toml only (manifest.toml is NEVER touched)
+    // Update Cargo.toml only.
     update_cargo_toml(&new_version)?;
     let lock_updated = update_cargo_lock(&new_version)?;
 

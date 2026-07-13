@@ -26,7 +26,7 @@ fn test_help_flag() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "A workspace orchestrator for monorepos.",
+            "A workspace utility for convention-based monorepos.",
         ));
 }
 

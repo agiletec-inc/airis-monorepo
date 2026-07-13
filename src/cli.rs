@@ -4,22 +4,23 @@ use clap::{Args, Parser, Subcommand};
 #[command(name = "airis-workspace")]
 #[command(about = "Convention engine for polyglot monorepos")]
 #[command(long_about = "\
-A workspace orchestrator for monorepos.
+A workspace utility for convention-based monorepos.
 
-Generates compose.yaml, tsconfig.json, and AI rule files from manifest.toml. \
-Stays out of your way for everything else.
+Discovers native project metadata, enforces `.airis/policies.toml`, and keeps
+workspace cleanup and validation safe. AI agent definitions are distributed by
+AIris Code.
 
 Invoked through the airis dispatcher as `airis workspace <cmd>`.")]
 #[command(after_help = "\
 QUICK REFERENCE:
-  airis workspace gen           Regenerate workspace files from manifest.toml
-  airis workspace doctor        Diagnose and fix workspace issues
+  airis workspace discover      Inspect native project metadata
   airis workspace clean         Remove build artifacts (dry-run by default)
   airis workspace validate all  Validate workspace configuration
 
 CONVENTIONS:
   airis-workspace automatically discovers projects in apps/* and libs/*.
-  Use manifest.toml only for overrides.")]
+  Native files such as package.json, Cargo.toml, pyproject.toml, and go.mod are
+  the source of truth. Policy is stored in .airis/policies.toml.")]
 pub struct Cli {
     /// Print version
     #[arg(short = 'V', long = "version")]
@@ -31,26 +32,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Query MANIFEST.toml data
-    Manifest {
-        #[command(subcommand)]
-        action: ManifestCommands,
-    },
-
-    /// Claude Code / MCP integration
-    Claude {
-        #[command(subcommand)]
-        action: ClaudeCommands,
-    },
-
     /// Project-level cleanup and management
     Workspace(WorkspaceArgs),
 
-    /// Documentation management
-    Docs {
-        #[command(subcommand)]
-        action: DocsCommands,
-    },
+    /// Discover projects from native repository metadata
+    Discover,
 
     /// Validate workspace configuration
     Validate {
@@ -61,36 +47,19 @@ pub enum Commands {
         json: bool,
     },
 
-    /// Run system health checks
-    Verify,
-
-    /// Diagnose workspace configuration and show actionable fixes.
-    Doctor {
-        /// Automatically fix detected issues
-        #[arg(long)]
-        fix: bool,
-        /// Show startup truth
-        #[arg(long)]
-        truth: bool,
-        /// Output startup truth as JSON
-        #[arg(long)]
-        truth_json: bool,
-    },
-
     /// Clean build artifacts
     Clean {
         /// Preview only (default)
         #[arg(long, default_value_t = false)]
         dry_run: bool,
         /// Remove orphaned or legacy config files (e.g., docker-compose.yml).
-        /// Requires manifest.toml so user-managed compose files can be protected.
         #[arg(long)]
         purge: bool,
         /// Actually execute deletions
         #[arg(long)]
         force: bool,
         /// Skip the project-root safety check (run even without
-        /// manifest.toml / package.json / Cargo.toml / pyproject.toml / go.mod
+        /// package.json / Cargo.toml / pyproject.toml / go.mod
         /// in the current directory)
         #[arg(long)]
         allow_anywhere: bool,
@@ -118,18 +87,7 @@ pub enum Commands {
         auto: bool,
     },
 
-    /// Regenerate workspace files
-    #[command(name = "gen")]
-    Gen {
-        #[arg(long)]
-        dry_run: bool,
-        #[arg(long)]
-        force: bool,
-        #[arg(long)]
-        migrate: bool,
-    },
-
-    /// Generate code and types
+    /// Generate database types
     Generate {
         #[command(subcommand)]
         action: GenerateCommands,
@@ -145,14 +103,6 @@ pub enum Commands {
     Deps {
         #[command(subcommand)]
         action: DepsCommands,
-    },
-
-    /// Preview changes
-    Diff {
-        #[arg(long)]
-        json: bool,
-        #[arg(long)]
-        stat: bool,
     },
 
     /// Upgrade airis-workspace
@@ -201,41 +151,7 @@ pub enum DepsCommands {
 }
 
 #[derive(Subcommand)]
-pub enum ClaudeCommands {
-    Setup,
-    Status,
-    Uninstall,
-}
-
-#[derive(Subcommand)]
-pub enum DocsCommands {
-    Wrap {
-        target: String,
-        /// Overwrite existing target files even when [docs.mode = "warn"].
-        #[arg(long)]
-        force: bool,
-    },
-    Sync {
-        /// Overwrite existing adapter files even when [docs.mode = "warn"].
-        #[arg(long)]
-        force: bool,
-    },
-    List,
-}
-
-#[derive(Subcommand)]
-pub enum ManifestCommands {
-    #[command(name = "dev-apps")]
-    DevApps,
-    #[command(name = "rule")]
-    Rule { name: String },
-    #[command(name = "json")]
-    Json,
-}
-
-#[derive(Subcommand)]
 pub enum ValidateCommands {
-    Manifest,
     Ports,
     Networks,
     Env,
